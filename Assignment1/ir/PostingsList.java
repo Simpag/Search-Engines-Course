@@ -8,6 +8,7 @@
 package ir;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 
 public class PostingsList {
     
@@ -28,12 +29,15 @@ public class PostingsList {
     // 
     //  YOUR CODE HERE - done?
     //
+    public Iterator<PostingsEntry> iterator() {
+        return list.iterator();
+    }
 
     private int last_docID = -1;
     public void insert(int docID, int offset) {
         double score = 0;
         if (docID == last_docID) { // if the docID for this token already exists
-            find_entry(docID).offset.add(offset);
+            find_entry(docID).offset.add(offset); // just add the new offset (where the token appears)
         } else {
             PostingsEntry p = new PostingsEntry(docID, score, offset);
             list.add(p);
