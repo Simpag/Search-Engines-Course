@@ -68,11 +68,9 @@ public class Searcher {
             String token = query.queryterm.get(i).term;
             tokens.add(index.getPostings(token));
         }
-        //Collections.sort(tokens, Comparator.comparingInt(PostingsList::size)); // sort the list in acending order
 
-        PostingsList res = tokens.get(0);
         Iterator<PostingsList> iter = tokens.iterator();
-        iter.next(); // skip 0
+        PostingsList res = iter.next();
 
         while (iter.hasNext() && res != null) {
             res = positional_intersection(res, iter.next());
@@ -103,46 +101,38 @@ public class Searcher {
 
     private PostingsList positional_intersection(PostingsList p1, PostingsList p2) {
         PostingsList ret = new PostingsList();
+        int p1i = 0, p2i = 0;
+        PostingsEntry pe1, pe2;
         
-        Iterator<PostingsEntry> p1_iter = p1.iterator();
-        Iterator<PostingsEntry> p2_iter = p2.iterator();
-        
-        PostingsEntry _p1 = p1_iter.next();
-        PostingsEntry _p2 = p2_iter.next();
-        int iiii = 0;
-        while (p1_iter.hasNext() && p2_iter.hasNext()) { // misses one document...?
-
-            if (_p1.docID == _p2.docID) {
-                Iterator<Integer> _pp1 = _p1.offset.iterator();
-                Iterator<Integer> _pp2 = _p2.offset.iterator();
-                int offset1 = _pp1.next();
-                int offset2 = _pp2.next();
+        while (p1i < p1.size() && p2i < p2.size()) {
+            pe1 = p1.get(p1i);
+            pe2 = p2.get(p2i);
+            if (pe1.docID == pe2.docID) {
+                int po1i = 0, po2i = 0;
+                int offset1, offset2;
                 
-                while (_pp1.hasNext() && _pp2.hasNext()) {
+                while (po1i < pe1.offset.size() && po2i < pe2.offset.size()) { // Search for words next to each other
+                    offset1 = pe1.offset.get(po1i);
+                    offset2 = pe2.offset.get(po2i);
                     if (offset1+1 == offset2) {
-                        System.err.println(_p1.docID);
-                        ret.insert(_p1.docID, offset2);
-                        offset1 = _pp1.next();
-                        offset2 = _pp2.next();
+                        ret.insert(pe1.docID, offset2);
+                        po1i++; po2i++;
                     } else if (offset1 < offset2) {
-                        offset1 = _pp1.next();
+                        po1i++;
                     } else {
-                        offset2 = _pp2.next();
+                        po2i++;
                     }
                 }
-
-                System.err.println(iiii++);
-
-                _p1 = p1_iter.next();
-                _p2 = p2_iter.next();
-            } else if (_p1.docID < _p2.docID) {
-                _p1 = p1_iter.next();
+                
+                p1i++; p2i++;
+            } else if (pe1.docID < pe2.docID) {
+                p1i++;
             } else {
-                _p2 = p2_iter.next();
+                p2i++;
             }
         }
 
-        if (ret.size() > 0) {
+        if (ret.size() > 0){
             return ret;
         }
         
