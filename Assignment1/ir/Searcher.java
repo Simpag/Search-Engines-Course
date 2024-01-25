@@ -81,10 +81,15 @@ public class Searcher {
 
     private PostingsList intersection_query(Query query) {
         ArrayList<PostingsList> tokens = new ArrayList<PostingsList>();
+        PostingsList p;
         for (int i = 0, size = query.size(); i < size; i++)
         {
             String token = query.queryterm.get(i).term;
-            tokens.add(index.getPostings(token));
+            p = index.getPostings(token);
+            if (p == null) {
+                return null;
+            }
+            tokens.add(p);
         }
         Collections.sort(tokens, Comparator.comparingInt(PostingsList::size)); // sort the list in acending order
 
@@ -115,7 +120,7 @@ public class Searcher {
                     offset1 = pe1.offset.get(po1i);
                     offset2 = pe2.offset.get(po2i);
                     if (offset1+1 == offset2) {
-                        ret.insert(pe1.docID, offset2);
+                        ret.insert(pe1.docID, 0, offset2);
                         po1i++; po2i++;
                     } else if (offset1 < offset2) {
                         po1i++;
@@ -144,7 +149,7 @@ public class Searcher {
         int i = 0, j = 0;
         while (i < p1.size() && j < p2.size()) {
             if (p1.get(i).docID == p2.get(j).docID) {
-                ret.insert(p1.get(i).docID, 0); // offset doesnt matter right now 
+                ret.insert(p1.get(i).docID, 0, 0); // offset doesnt matter right now 
                 i++; j++;
             } else if (p1.get(i).docID < p2.get(j).docID) {
                 i++;

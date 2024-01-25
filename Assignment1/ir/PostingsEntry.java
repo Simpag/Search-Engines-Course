@@ -40,6 +40,19 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
         this.offset.add(offset);
     }
 
+    public String serialize()
+    {
+        // Returns docID,score,#offsets,offsets
+        String ret = String.valueOf(docID)+",";
+        ret += String.valueOf(score)+",";
+        ret += String.valueOf(offset.size());
+        for (int o : offset) {
+            ret += ","+String.valueOf(o);
+        }
+
+        return ret;
+    }
+
     /*@Override
     public boolean equals (Object object) {
         if (object != null && object.getClass() == this.getClass()) {

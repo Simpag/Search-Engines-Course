@@ -31,10 +31,10 @@ public class HashedIndex implements Index {
         //
         if (index.containsKey(token)) {
             PostingsList p = index.get(token);
-            p.insert(docID, offset);
+            p.insert(docID, 0, offset);
         } else {
             PostingsList p = new PostingsList();
-            p.insert(docID, offset);
+            p.insert(docID, 0, offset);
             index.put(token, p);
         }
     }

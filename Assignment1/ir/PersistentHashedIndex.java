@@ -9,6 +9,7 @@ package ir;
 
 import java.io.*;
 import java.util.*;
+import java.nio.ByteBuffer;
 import java.nio.charset.*;
 
 
@@ -65,6 +66,31 @@ public class PersistentHashedIndex implements Index {
         //
         //  YOUR CODE HERE
         //
+        public static final int byte_size = 3*Long.BYTES;
+        public long start_ptr;
+        public long end_ptr;
+        public long collision_ptr;
+
+        public Entry(long start, long end) {
+            this.start_ptr = start;
+            this.end_ptr = end;
+            this.collision_ptr = -1;
+        }
+
+        public Entry(byte[] data) {
+            ByteBuffer buffer = ByteBuffer.wrap(data);
+            this.start_ptr = buffer.getLong();
+            this.end_ptr = buffer.getLong();
+            this.collision_ptr = buffer.getLong();
+        }
+
+        public byte[] get_bytes() {
+            ByteBuffer buffer = ByteBuffer.allocate(byte_size);
+            buffer.putLong(start_ptr);
+            buffer.putLong(end_ptr);
+            buffer.putLong(collision_ptr);
+            return buffer.array();
+        }
     }
 
 
@@ -135,10 +161,19 @@ public class PersistentHashedIndex implements Index {
      *  @param entry The key of this entry is assumed to have a fixed length
      *  @param ptr   The place in the dictionary file to store the entry
      */
-    void writeEntry( Entry entry, long ptr ) {
+    void writeEntry(Entry entry, long ptr) {
         //
         //  YOUR CODE HERE
         //
+        try {
+            dictionaryFile.seek(ptr); 
+            byte[] data = entry.get_bytes();
+            dictionaryFile.write(data);
+            return;
+        } catch ( IOException e ) {
+            e.printStackTrace();
+            return;
+        }
     }
 
     /**
@@ -150,7 +185,15 @@ public class PersistentHashedIndex implements Index {
         //
         //  REPLACE THE STATEMENT BELOW WITH YOUR CODE 
         //
-        return null;
+        try {
+            dictionaryFile.seek( ptr );
+            byte[] data = new byte[Entry.byte_size];
+            dictionaryFile.readFully( data );
+            return new Entry(data);
+        } catch ( IOException e ) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
 
@@ -198,6 +241,7 @@ public class PersistentHashedIndex implements Index {
      */
     public void writeIndex() {
         int collisions = 0;
+        int[] hashes_used = new int[(int)TABLESIZE];
         try {
             // Write the 'docNames' and 'docLengths' hash maps to a file
             writeDocInfo();
@@ -207,10 +251,81 @@ public class PersistentHashedIndex implements Index {
             // 
             //  YOUR CODE HERE
             //
+            for (String key : index.keySet()){
+                // Write the data to the datafile
+                int written_data = writeData(index.get(key).serialize(key), free);
+                // Save the starting pointer and ending pointer
+                Entry e = new Entry(free, free+written_data); // this is the postings list for token "key" 
+                // Increment the starting pointer
+                free += written_data+1; // +1 ?
+                // Get hash of token
+                int hash = hash_function(key);
+                // Get the pointer corresponding to the location in the dictionary
+                long ptr = get_pointer_from_hash(hash);
+                
+                if (hashes_used[hash] == 0) {
+                    writeEntry(e, ptr);
+                    hashes_used[hash] = 1;
+                } else {
+                    // Collision occured
+                    collisions += 1;
+                    // Get a new pointer to store the current postings list
+                    int new_hash = find_first_collision_free(hashes_used);
+                    long new_ptr = get_pointer_from_hash(new_hash);
+                    
+                    // Get the entry at the collision hash value
+                    EndOfListResponse response = find_end_of_list(ptr);
+                    // Save the new pointer to the collision entry
+                    Entry col_entry = response.entry;
+                    col_entry.collision_ptr = new_ptr;
+                    writeEntry(col_entry, response.ptr);
+                    
+                    // Write the entry to its new position
+                    writeEntry(e, new_ptr);
+                    hashes_used[new_hash] = 1;
+                    // The above basically creates a linked list
+                }
+            }
         } catch ( IOException e ) {
             e.printStackTrace();
         }
         System.err.println( collisions + " collisions." );
+    }
+
+    private class EndOfListResponse {
+        public Entry entry;
+        public long ptr;
+
+        public EndOfListResponse(Entry entry, long ptr) {
+            this.entry = entry;
+            this.ptr = ptr;
+        }
+    }
+    private EndOfListResponse find_end_of_list(long ptr) {
+        Entry e = new Entry(0, 0);
+        while (true) {
+            // Get the entry at the collision hash value
+            e = readEntry(ptr);
+            if (e.collision_ptr == -1) {
+                break; // found the end of the linked list
+            } else {
+                ptr = e.collision_ptr;
+            }
+        }
+
+        return new EndOfListResponse(e, ptr);
+    }
+
+    private int find_first_collision_free(int[] arr) {
+        for (int i = 0; i < arr.length; i++) {
+            if (arr[i] == 0){
+                return i;
+            }
+        }
+        
+        System.err.println("Something went wrong, did not find any collision free indicies!");
+
+        return -1;
     }
 
 
@@ -225,7 +340,26 @@ public class PersistentHashedIndex implements Index {
         //
         //  REPLACE THE STATEMENT BELOW WITH YOUR CODE
         //
-        return null;
+        int hash = hash_function(token);
+        long ptr = get_pointer_from_hash(hash);
+        String data[];
+
+        while (true) {
+            Entry e = readEntry(ptr);
+            data = readData(e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(",");
+            ptr = e.collision_ptr;
+            
+            if (data[0].equals(token))
+                break;
+
+            if (ptr == -1)                
+                return null; // token does not exsist
+
+        }
+
+        PostingsList p = PostingsList.deserialize(data);
+
+        return p;
     }
 
 
@@ -236,6 +370,14 @@ public class PersistentHashedIndex implements Index {
         //
         //  YOUR CODE HERE
         //
+        if (index.containsKey(token)) {
+            PostingsList p = index.get(token);
+            p.insert(docID, 0, offset);
+        } else {
+            PostingsList p = new PostingsList();
+            p.insert(docID, 0, offset);
+            index.put(token, p);
+        }
     }
 
 
@@ -247,5 +389,28 @@ public class PersistentHashedIndex implements Index {
         System.err.print( "Writing index to disk..." );
         writeIndex();
         System.err.println( "done!" );
+    }
+
+
+    private int hash_function(String in) {
+        return (int)(Math.abs(in.hashCode())%TABLESIZE);
+    }
+
+    /*private int hash_function(String in) {
+        int[] primes = {39,31,37,41,43};// {11,13,17,19,23,39,31,37,41,43};
+        int num_primes = primes.length;
+        int hash = 7;
+        
+        byte[] b = in.getBytes();
+        
+        for (int i = 0; i < b.length; i++) {
+            hash += Math.abs(b[i] * primes[i%num_primes]);
+        }
+        
+        return (int)Math.floor(hash%TABLESIZE);
+    }*/
+
+    private long get_pointer_from_hash(int hash) {
+        return (Entry.byte_size+1) * hash;
     }
 }

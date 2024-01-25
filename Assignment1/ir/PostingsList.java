@@ -9,6 +9,7 @@ package ir;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.StringJoiner;
 
 public class PostingsList {
     
@@ -33,20 +34,52 @@ public class PostingsList {
         return list.iterator();
     }
 
-    private int last_docID = -1;
-    public void insert(int docID, int offset) {
-        double score = 0;
-        if (docID == last_docID) { // if the docID for this token already exists
-            find_entry(docID).offset.add(offset); // just add the new offset (where the token appears)
+    private PostingsEntry last_entry = new PostingsEntry(-1, 0, 0);
+    public void insert(int docID, double score, int offset) {
+        PostingsEntry p;
+        if (docID == last_entry.docID) { // if the docID for this token already exists
+            p = last_entry;
+            p.offset.add(offset); // just add the new offset (where the token appears)
         } else {
-            PostingsEntry p = new PostingsEntry(docID, score, offset);
+            p = new PostingsEntry(docID, score, offset);
             list.add(p);
         }
 
-        last_docID = docID;
+        last_entry = p;
     }
 
-    private PostingsEntry find_entry(int docID) {
+    public String serialize(String token)
+    {
+        // Stored as first entry is token, then docID,score,#offsets,offsets and repeating
+        String ret = token+",";
+        for (int i = 0; i < list.size(); i++) {
+            ret += list.get(i).serialize();
+            if (i < list.size()-1) // add a "," to all but last
+                ret += ',';
+        }
+
+        return ret;
+    }
+
+    public static PostingsList deserialize(String[] s) {
+        PostingsList p = new PostingsList();
+
+        int i = 1;
+        while (i < s.length) {
+            int docID = Integer.valueOf(s[i++]);
+            double score = Double.valueOf(s[i++]);
+            int number_of_offsets = Integer.valueOf(s[i++]);
+            for (int j = 0; j < number_of_offsets; j++) {
+                int offset = Integer.valueOf(s[i++]);
+                p.insert(docID, score, offset);
+            }
+        }
+
+        return p;
+    }
+
+    /*
+    private PostingsEntry find_entry(int docID) { // Can do binary search (since it should be sorted) but I dont feel like doing it
         for (int i = 0, size = list.size(); i < size; i++)
         {
             PostingsEntry p = list.get(i);
@@ -57,7 +90,6 @@ public class PostingsList {
         return null;
     }
 
-    /*
     public void insert(int docID, int offset) {
         double score = 0;
         PostingsEntry _p = contains_docID(docID);
