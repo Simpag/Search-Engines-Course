@@ -1,0 +1,30 @@
+Student_Organizations.f: Contains a list of organizations at some campus, can be relevent when deciding on which UNI to go to but does not give any information about the program itself.
+Biological_Systems_Engineering.f: Is about biological engineering, not mathematics program.
+Candidate_Statements.f: Some election transcript, not relevant to the program of mathematics.
+Computer_Science.f: It is about computer science program.
+document_translated.f: Some political stuff.
+ECE_Course_Reviews.f: It is about electrical and computer engineering.
+Economics.f: It is about the economics program.
+Elaine_Kasimatis.f: It is about mathematics but does not give much information about the program.
+Evelyn_Silvia.f: Same as above.
+Events_Calendars.f: It is just a link of events, setting 0 or 1 is tricky but since it is not about the program but there is an event about seminars for mathematics. (maybe????)
+Fiber_and_Polymer_Science.f: It is about the fiber and polymer program.
+Hydrology.f: Again is about hydrology major.
+Mathematics.f: It is about the mathematics program at UCD.
+MattHh.f: He is a math major and is open to discuss the program with other people. 
+Private_Tutoring.f: Just a list of tutors.
+Quantitative_Biology_and_Bioinformatics.f: About some biology program.
+Statistics.f: It is not about the mathematics program but it is a subfield of it, with a few good pointers and help. (should it be 1 or 2?)
+UCD_Honors_and_Prizes.f: It is about some honors and prizes, not relevant to learning about the program, this is about the school.
+UC_Davis_English_Department.f: It is about the english department.
+University_Departments.f: Just a list of departments. (hard, maybe a good overview?)
+What_I_Wish_I_Knew...Before_Coming_to_UC_Davis_Entomology.f: Does not give much information about the program but it is a lot of general information that one should know. (hard)
+Wildlife%2C_Fish%2C_and_Conservation_Biology.f: It is not about mathematics.
+
+0's: 13
+1's: 6
+2's: 2
+3's: 1
+
+Precision = 9/22 (~41%)
+Recall = 9/100 (~9%)
