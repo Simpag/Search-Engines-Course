@@ -391,26 +391,20 @@ public class PersistentHashedIndex implements Index {
         System.err.println( "done!" );
     }
 
-
     private int hash_function(String in) {
-        return (int)(Math.abs(in.hashCode())%TABLESIZE);
-    }
-
-    /*private int hash_function(String in) {
-        int[] primes = {39,31,37,41,43};// {11,13,17,19,23,39,31,37,41,43};
+        int[] primes = {11,13,17,19}; // {39,31,37,41,43} {11,13,17,19,23,39,31,37,41,43};
         int num_primes = primes.length;
-        int hash = 7;
+        long hash = 3;
         
         byte[] b = in.getBytes();
-        
         for (int i = 0; i < b.length; i++) {
-            hash += Math.abs(b[i] * primes[i%num_primes]);
+            hash *= b[i] * primes[i%num_primes];
         }
-        
-        return (int)Math.floor(hash%TABLESIZE);
-    }*/
+
+        return (int)Math.floor(Math.abs(hash%TABLESIZE));
+    }
 
     private long get_pointer_from_hash(int hash) {
-        return (Entry.byte_size+1) * hash;
+        return (Entry.byte_size+1) * hash; // adding one because I've never used java and dont know if some functions are inclusive and I dont feel like finding out
     }
 }
