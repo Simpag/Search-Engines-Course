@@ -84,8 +84,8 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         docLengths.clear();
         docNames.clear();
         try {
-            dictionaryFile = new RandomAccessFile(data_file, "rw" );
-            dataFile = new RandomAccessFile(dict_file, "rw" );
+            dictionaryFile = new RandomAccessFile(dict_file, "rw" );
+            dataFile = new RandomAccessFile(data_file, "rw" );
         } catch ( IOException e ) {
             e.printStackTrace();
         }
@@ -96,8 +96,24 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     private void merge_files() {
         String main_data_file = INDEXDIR + "/" + DATA_FNAME;
         String main_dict_file = INDEXDIR + "/" + DICTIONARY_FNAME; 
-        String data_file = current_index_file[0];
-        String dict_file = current_index_file[1];
+        String merge_data_file = current_index_file[0];
+        String merge_dict_file = current_index_file[1];
+
+        // think about the current index file
+
+        try {
+            RandomAccessFile tempData = new RandomAccessFile(merge_data_file, "rw" );
+            RandomAccessFile tempDict = new RandomAccessFile(merge_dict_file, "rw" );
+        } catch ( IOException e ) {
+            e.printStackTrace();
+        }
+
+        long main_pointer = 0L, merge_pointer = 0L;
+
+        while (true) {
+            Entry main_entry = find_first_entry_from(main_dict_file, main_pointer);
+            Entry merge_entry = find_first_entry_from(merge_dict_file, merge_pointer);
+        }
 
         // Do some merging
         /*
@@ -118,5 +134,9 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
          * 
          * Once done, remove old files and remane the temporary file to the final name.
          */
+    }
+
+    private Entry find_first_entry_from(String file, long ptr) {
+        return null;
     }
 }
