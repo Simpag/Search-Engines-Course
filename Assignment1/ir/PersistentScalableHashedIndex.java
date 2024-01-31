@@ -38,6 +38,74 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     private String[] current_index_file = {"",""};
 
     /**
+     *  Writes data to the data file at a specified place.
+     *
+     *  @return The number of bytes written.
+     */ 
+    int writeData(RandomAccessFile file, String dataString, long ptr ) {
+        try {
+            file.seek( ptr ); 
+            byte[] data = dataString.getBytes();
+            file.write( data );
+            return data.length;
+        } catch ( IOException e ) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+
+    /**
+     *  Reads data from the data file
+     */ 
+    String readData(RandomAccessFile file, long ptr, int size ) {
+        try {
+            file.seek( ptr );
+            byte[] data = new byte[size];
+            file.readFully( data );
+            return new String(data);
+        } catch ( IOException e ) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /*
+     *  Writes an entry to the dictionary hash table file. 
+     *
+     *  @param entry The key of this entry is assumed to have a fixed length
+     *  @param ptr   The place in the dictionary file to store the entry
+     */
+    void writeEntry(RandomAccessFile file, Entry entry, long ptr) {
+        try {
+            file.seek(ptr); 
+            byte[] data = entry.get_bytes();
+            file.write(data);
+            return;
+        } catch ( IOException e ) {
+            e.printStackTrace();
+            return;
+        }
+    }
+
+    /**
+     *  Reads an entry from the dictionary file.
+     *
+     *  @param ptr The place in the dictionary file where to start reading.
+     */
+    Entry readEntry(RandomAccessFile file, long ptr ) {   
+        try {
+            file.seek( ptr );
+            byte[] data = new byte[Entry.byte_size];
+            file.readFully( data );
+            return new Entry(data);
+        } catch ( IOException e ) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
      *  Inserts this token in the main-memory hashtable.
      */
     public void insert( String token, int docID, int offset ) {
@@ -69,15 +137,15 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         writeIndex();
 
         if (merge) {
-            merge_files();
+            merge_files(null, null);
         }
 
         // Make a new files and reset
         String i = Integer.toString(ThreadLocalRandom.current().nextInt(0, 100 + 1));
         String data_file = INDEXDIR + "/" + DATA_FNAME + i;
         String dict_file = INDEXDIR + "/" + DICTIONARY_FNAME + i;
-        current_index_file[0] = data_file;
-        current_index_file[1] = dict_file;
+        //current_index_file[0] = data_file;
+        //current_index_file[1] = dict_file;
         
         free = 0L;
         index.clear();
@@ -93,17 +161,23 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         System.err.println( "done!" );
     }
 
-    private void merge_files() {
-        String main_data_file = INDEXDIR + "/" + DATA_FNAME;
-        String main_dict_file = INDEXDIR + "/" + DICTIONARY_FNAME; 
-        String merge_data_file = current_index_file[0];
-        String merge_dict_file = current_index_file[1];
+    private void merge_files(RandomAccessFile data, RandomAccessFile dict) {
+        String main_data_location = INDEXDIR + "/" + DATA_FNAME;
+        String main_dict_location = INDEXDIR + "/" + DICTIONARY_FNAME; 
+        //String merge_data_file = current_index_file[0];
+        //String merge_dict_file = current_index_file[1];
 
         // think about the current index file
+        RandomAccessFile tempData = null;
+        RandomAccessFile tempDict = null;
+        RandomAccessFile main_data = null;
+        RandomAccessFile main_dict = null;
 
         try {
-            RandomAccessFile tempData = new RandomAccessFile(merge_data_file, "rw" );
-            RandomAccessFile tempDict = new RandomAccessFile(merge_dict_file, "rw" );
+            tempData = new RandomAccessFile( INDEXDIR + "/tempdata", "rw" );
+            tempDict = new RandomAccessFile( INDEXDIR + "/tempdict", "rw" );
+            main_data = new RandomAccessFile(main_data_location, "rw" );
+            main_dict = new RandomAccessFile(main_dict_location, "rw" );
         } catch ( IOException e ) {
             e.printStackTrace();
         }
@@ -111,8 +185,14 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         long main_pointer = 0L, merge_pointer = 0L;
 
         while (true) {
-            Entry main_entry = find_first_entry_from(main_dict_file, main_pointer);
-            Entry merge_entry = find_first_entry_from(merge_dict_file, merge_pointer);
+            EndOfListResponse main_resp = find_first_entry_from(main_dict, main_pointer);
+            String main_entry_data[] = readData(main_data, main_resp.entry.start_ptr, (int)(main_resp.entry.end_ptr-main_resp.entry.start_ptr)).split(",");
+
+            
+            
+
+            main_pointer = get_pointer_from_hash((int)(main_pointer+1));
+            merge_pointer = get_pointer_from_hash((int)(merge_pointer+1));
         }
 
         // Do some merging
@@ -136,7 +216,17 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
          */
     }
 
-    private Entry find_first_entry_from(String file, long ptr) {
+    private EndOfListResponse find_first_entry_from(RandomAccessFile dict, long ptr) {
+        while (ptr < TABLESIZE) {
+            Entry e = readEntry(dict, ptr);
+
+            if (e.end_ptr == 0L) {
+                ptr = get_pointer_from_hash((int)(ptr+1));
+            } else {
+                return new EndOfListResponse(e, ptr);
+            }
+        }
+
         return null;
     }
 }

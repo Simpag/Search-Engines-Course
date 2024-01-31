@@ -292,7 +292,7 @@ public class PersistentHashedIndex implements Index {
         System.err.println( collisions + " collisions." );
     }
 
-    private class EndOfListResponse {
+    protected class EndOfListResponse {
         public Entry entry;
         public long ptr;
 
@@ -301,7 +301,7 @@ public class PersistentHashedIndex implements Index {
             this.ptr = ptr;
         }
     }
-    private EndOfListResponse find_end_of_list(long ptr) {
+    protected EndOfListResponse find_end_of_list(long ptr) {
         Entry e = new Entry(0, 0);
         while (true) {
             // Get the entry at the collision hash value
@@ -316,7 +316,7 @@ public class PersistentHashedIndex implements Index {
         return new EndOfListResponse(e, ptr);
     }
 
-    private int find_first_collision_free(int[] arr) {
+    protected int find_first_collision_free(int[] arr) {
         for (int i = 0; i < arr.length; i++) {
             if (arr[i] == 0){
                 return i;
@@ -391,20 +391,20 @@ public class PersistentHashedIndex implements Index {
         System.err.println( "done!" );
     }
 
-    private int hash_function(String in) {
+    protected int hash_function(String in) {
         int[] primes = {11,13,17,19}; // {39,31,37,41,43} {11,13,17,19,23,39,31,37,41,43};
         int num_primes = primes.length;
         long hash = 3;
         
         byte[] b = in.getBytes();
         for (int i = 0; i < b.length; i++) {
-            hash *= (b[i]+0.5) * primes[i%num_primes];
+            hash *= b[i] * primes[i%num_primes];
         }
 
         return (int)Math.floor(Math.abs(hash%TABLESIZE));
     }
 
-    private long get_pointer_from_hash(int hash) {
+    protected long get_pointer_from_hash(int hash) {
         return (Entry.byte_size+1) * hash; // adding one because I've never used java and dont know if some functions are inclusive and I dont feel like finding out
     }
 }
