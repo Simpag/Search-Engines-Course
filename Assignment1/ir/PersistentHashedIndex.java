@@ -347,7 +347,7 @@ public class PersistentHashedIndex implements Index {
 
         while (true) {
             Entry e = readEntry(ptr);
-            data = readData(e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(",");
+            data = readData(e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(";");
             ptr = e.collision_ptr;
             
             if (data[0].equals(token))

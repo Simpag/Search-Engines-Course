@@ -43,11 +43,11 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
     public String serialize()
     {
         // Returns docID,score,#offsets,offsets
-        String ret = String.valueOf(docID)+",";
-        ret += String.valueOf(score)+",";
+        String ret = String.valueOf(docID)+";";
+        ret += String.valueOf(score)+";";
         ret += String.valueOf(offset.size());
         for (int o : offset) {
-            ret += ","+String.valueOf(o);
+            ret += ";"+String.valueOf(o);
         }
 
         return ret;

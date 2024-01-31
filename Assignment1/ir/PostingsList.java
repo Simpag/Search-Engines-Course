@@ -51,11 +51,11 @@ public class PostingsList {
     public String serialize(String token)
     {
         // Stored as first entry is token, then docID,score,#offsets,offsets and repeating
-        String ret = token+",";
+        String ret = token+";";
         for (int i = 0; i < list.size(); i++) {
             ret += list.get(i).serialize();
-            if (i < list.size()-1) // add a "," to all but last
-                ret += ',';
+            if (i < list.size()-1) // add a " " to all but last
+                ret += ";";
         }
 
         return ret;
