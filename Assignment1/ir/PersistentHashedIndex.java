@@ -398,7 +398,7 @@ public class PersistentHashedIndex implements Index {
         
         byte[] b = in.getBytes();
         for (int i = 0; i < b.length; i++) {
-            hash *= b[i] * primes[i%num_primes];
+            hash *= (b[i]+0.5) * primes[i%num_primes];
         }
 
         return (int)Math.floor(Math.abs(hash%TABLESIZE));
