@@ -115,6 +115,7 @@ public class PersistentHashedIndex implements Index {
         } catch ( IOException e ) {
             e.printStackTrace();
         }
+
     }
 
     /**
@@ -204,7 +205,7 @@ public class PersistentHashedIndex implements Index {
      *
      * @throws IOException  { exception_description }
      */
-    private void writeDocInfo() throws IOException {
+    protected void writeDocInfo() throws IOException {
         FileOutputStream fout = new FileOutputStream( INDEXDIR + "/docInfo" );
         for ( Map.Entry<Integer,String> entry : docNames.entrySet() ) {
             Integer key = entry.getKey();
@@ -221,7 +222,7 @@ public class PersistentHashedIndex implements Index {
      *
      * @throws     IOException  { exception_description }
      */
-    private void readDocInfo() throws IOException {
+    protected void readDocInfo() throws IOException {
         File file = new File( INDEXDIR + "/docInfo" );
         FileReader freader = new FileReader(file);
         try ( BufferedReader br = new BufferedReader(freader) ) {
@@ -394,11 +395,11 @@ public class PersistentHashedIndex implements Index {
     protected int hash_function(String in) {
         int[] primes = {11,13,17,19}; // {39,31,37,41,43} {11,13,17,19,23,39,31,37,41,43};
         int num_primes = primes.length;
-        long hash = 3;
+        double hash = 3;
         
         byte[] b = in.getBytes();
         for (int i = 0; i < b.length; i++) {
-            hash *= b[i] * primes[i%num_primes];
+            hash *= (b[i]+0.5) * primes[i%num_primes];
         }
 
         return (int)Math.floor(Math.abs(hash%TABLESIZE));
