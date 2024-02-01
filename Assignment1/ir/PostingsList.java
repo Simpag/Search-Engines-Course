@@ -16,6 +16,7 @@ public class PostingsList {
     /** The postings list */
     private ArrayList<PostingsEntry> list = new ArrayList<PostingsEntry>();
 
+    private static final String DATA_SEPARATOR = " ";
 
     /** Number of postings in this list. */
     public int size() {
@@ -51,11 +52,11 @@ public class PostingsList {
     public String serialize(String token)
     {
         // Stored as first entry is token, then docID,score,#offsets,offsets and repeating
-        String ret = token+";";
+        String ret = token+DATA_SEPARATOR;
         for (int i = 0; i < list.size(); i++) {
             ret += list.get(i).serialize();
-            if (i < list.size()-1) // add a " " to all but last
-                ret += ";";
+            if (i < list.size()-1) // add a DATA_SEPARATOR to all but last
+                ret += DATA_SEPARATOR;
         }
 
         return ret;

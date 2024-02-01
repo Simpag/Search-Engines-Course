@@ -7,6 +7,8 @@
 
 package ir;
 
+import static ir.PersistentHashedIndex.DATA_SEPARATOR;
+
 import java.io.*;
 import java.util.*;
 import java.nio.ByteBuffer;
@@ -33,7 +35,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     /** The temp-merge data file name */
     public static final String MERGE_DATA_FNAME = "data_merge";
 
-    public static final int BATCHSIZE = 1_000_000_000;
+    public static final int BATCHSIZE = 50_000; //10_000_000;
     
     /**
      *  Writes data to the data file at a specified place.
@@ -220,11 +222,11 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         for (String token : main_tokens) {
             String[] main_sdata = get_positings_data(main_dict, main_data, token);
             String[] merge_sdata = null;
-            String write_data = String.join(" ", main_sdata);
+            String write_data = String.join(DATA_SEPARATOR, main_sdata);
             if (contains_token(merge_tokens, token)) {
                 merge_sdata = get_positings_data(merge_dict, merge_data, token);
                 merge_sdata[0] = "";
-                write_data += String.join(" ", merge_sdata);
+                write_data += String.join(DATA_SEPARATOR, merge_sdata);
             }
             
 
@@ -267,7 +269,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             }
             
             String merge_sdata[] = get_positings_data(merge_dict, merge_data, token);
-            String write_data = String.join(" ", merge_sdata);
+            String write_data = String.join(DATA_SEPARATOR, merge_sdata);
             
 
             // Write the data to the datafile
@@ -363,7 +365,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
         while (true) {
             Entry e = readEntry(dict, ptr);
-            ret_data = readData(data, e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(" ");
+            ret_data = readData(data, e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(DATA_SEPARATOR);
 
             ptr = e.collision_ptr;
             
@@ -404,7 +406,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             }
             
             if (e.end_ptr > 0) {
-                String sdata[] = readData(data, e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(" ");
+                String sdata[] = readData(data, e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(DATA_SEPARATOR);
                 ret.add(sdata[0]);
             }
 

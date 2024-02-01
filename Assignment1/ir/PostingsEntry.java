@@ -18,6 +18,8 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
     public int docID;
     public double score = 0;
 
+    private static final String DATA_SEPARATOR = " ";
+
     /**
      *  PostingsEntries are compared by their score (only relevant
      *  in ranked retrieval).
@@ -43,11 +45,11 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
     public String serialize()
     {
         // Returns docID,score,#offsets,offsets
-        String ret = String.valueOf(docID)+";";
-        ret += String.valueOf(score)+";";
+        String ret = String.valueOf(docID)+DATA_SEPARATOR;
+        ret += String.valueOf(score)+DATA_SEPARATOR;
         ret += String.valueOf(offset.size());
         for (int o : offset) {
-            ret += ";"+String.valueOf(o);
+            ret += DATA_SEPARATOR+String.valueOf(o);
         }
 
         return ret;

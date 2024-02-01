@@ -42,7 +42,7 @@ public class PersistentHashedIndex implements Index {
     public static final String DOCINFO_FNAME = "docInfo";
 
     /** The dictionary hash table on disk can fit this many entries. */
-    public static final long TABLESIZE = 611953L;
+    public static final long TABLESIZE = 611953L; //3_503_119L;
 
     /** The dictionary hash table is stored in this file. */
     RandomAccessFile dictionaryFile;
@@ -55,6 +55,8 @@ public class PersistentHashedIndex implements Index {
 
     /** The cache as a main-memory hash map. */
     HashMap<String,PostingsList> index = new HashMap<String,PostingsList>();
+
+    protected static final String DATA_SEPARATOR = " ";
 
 
     // ===================================================================
@@ -347,7 +349,7 @@ public class PersistentHashedIndex implements Index {
 
         while (true) {
             Entry e = readEntry(ptr);
-            data = readData(e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(";");
+            data = readData(e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(DATA_SEPARATOR);
             ptr = e.collision_ptr;
             
             if (data[0].equals(token))
@@ -393,7 +395,7 @@ public class PersistentHashedIndex implements Index {
     }
 
     protected int hash_function(String in) {
-        int[] primes = {11,13,17,19}; // {39,31,37,41,43} {11,13,17,19,23,39,31,37,41,43};
+        int[] primes = {11,13,17,19}; // {11,13,17,19,23,39,31,37,41,43};
         int num_primes = primes.length;
         double hash = 3;
         
@@ -403,6 +405,7 @@ public class PersistentHashedIndex implements Index {
         }
 
         return (int)Math.floor(Math.abs(hash%TABLESIZE));
+        //return (int)Math.abs(Math.floor(in.hashCode()%TABLESIZE));
     }
 
     protected long get_pointer_from_hash(int hash) {
