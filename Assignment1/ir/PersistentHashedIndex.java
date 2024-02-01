@@ -42,7 +42,7 @@ public class PersistentHashedIndex implements Index {
     public static final String DOCINFO_FNAME = "docInfo";
 
     /** The dictionary hash table on disk can fit this many entries. */
-    public static final long TABLESIZE = 611953L; //3_503_119L;
+    public static final long TABLESIZE = 611953L; //3_503_119L //611953L
 
     /** The dictionary hash table is stored in this file. */
     RandomAccessFile dictionaryFile;

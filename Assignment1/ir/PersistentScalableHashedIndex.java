@@ -35,7 +35,11 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     /** The temp-merge data file name */
     public static final String MERGE_DATA_FNAME = "data_merge";
 
-    public static final int BATCHSIZE = 50_000; //10_000_000;
+    public static final String MERGE_DATA_IP_FNAME = "merge_in_progress";
+
+    public static final int BATCHSIZE = 50_000;//10_000_000;
+
+    private int merges_completed = 0;
     
     /**
      *  Writes data to the data file at a specified place.
@@ -134,18 +138,19 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     public void cleanup() {
         System.err.println( index.keySet().size() + " unique words" );
  
-        String merge_data_location = INDEXDIR + "/" + MERGE_DATA_FNAME;
-        String merge_dict_location = INDEXDIR + "/" + MERGE_DICTIONARY_FNAME;
+        String merge_data_location = INDEXDIR + "/" + MERGE_DATA_FNAME + Integer.toString(merges_completed);
+        String merge_dict_location = INDEXDIR + "/" + MERGE_DICTIONARY_FNAME + Integer.toString(merges_completed++);
+        String merge_ip_location = INDEXDIR + "/" + MERGE_DATA_IP_FNAME;
 
         // Wait until file is gone
-        File f2 = new File(merge_data_location);
-        if (f2.length() > 0) {
+        File f2 = new File(merge_ip_location);
+        if (f2.exists()) {
             try {
                 System.err.print("Waiting for merge to finish....");
-                while (f2.length() > 0) {
+                while (f2.exists()) {
                     // it will sleep the main thread for 1 sec
-                    Thread.sleep(1000);
-                    f2 = new File(merge_data_location);
+                    Thread.sleep(500);
+                    f2 = new File(merge_ip_location);
                 }
             }
             catch (Exception e) {
@@ -168,7 +173,10 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                 e.printStackTrace();
             }
             writeIndex();
-            merge_files();
+            //merge_files();
+            Merger m = new Merger();
+            Thread thread = new Thread(m);
+            thread.start();
         } else {
             writeIndex();
         }
@@ -189,10 +197,11 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     }
 
     private void merge_files() {
+        String merge_ip_location = INDEXDIR + "/" + MERGE_DATA_IP_FNAME;
         String main_data_location = INDEXDIR + "/" + DATA_FNAME;
         String main_dict_location = INDEXDIR + "/" + DICTIONARY_FNAME; 
-        String merge_data_location = INDEXDIR + "/" + MERGE_DATA_FNAME;
-        String merge_dict_location = INDEXDIR + "/" + MERGE_DICTIONARY_FNAME;
+        String merge_data_location = INDEXDIR + "/" + MERGE_DATA_FNAME + Integer.toString(merges_completed-2);
+        String merge_dict_location = INDEXDIR + "/" + MERGE_DICTIONARY_FNAME + Integer.toString(merges_completed-2); // -2 because of first file different name
 
         RandomAccessFile tempData = null;
         RandomAccessFile tempDict = null;
@@ -201,7 +210,10 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         RandomAccessFile merge_data = null;
         RandomAccessFile merge_dict = null;
 
+        File merge_ip = new File(merge_ip_location);
+
         try {
+            merge_ip.createNewFile();
             tempData = new RandomAccessFile( INDEXDIR + "/tempdata", "rw" );
             tempDict = new RandomAccessFile( INDEXDIR + "/tempdict", "rw" );
             main_data = new RandomAccessFile(main_data_location, "rw" );
@@ -210,6 +222,21 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             merge_dict = new RandomAccessFile(merge_dict_location, "rw" );
         } catch ( IOException e ) {
             e.printStackTrace();
+        }
+
+        // Wait until merge data is written...
+        File data_checker = new File(merge_data_location);
+        File dict_checker = new File(merge_dict_location);
+        try {
+            while (!(data_checker.length() > 0 && dict_checker.length() > 0)) {
+                // it will sleep the main thread for 1 sec
+                Thread.sleep(500);
+                data_checker = new File(merge_data_location);
+                dict_checker = new File(merge_dict_location);
+            }
+        }
+        catch (Exception e) {
+            System.err.println(e);
         }
 
         long free_ptr = 0;
@@ -330,9 +357,13 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
             f5.renameTo(new File(main_data_location));
             f6.renameTo(new File(main_dict_location));
+
+            //System.err.println("Deleted and loaded: " + merge_data_location + " : " + merge_dict_location);
         } catch ( IOException e ) {
             e.printStackTrace();
         }
+
+        merge_ip.delete();
 
         /*
          * Read all the tokens
@@ -416,5 +447,11 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         String[] sret = ret.toArray(new String[ret.size()]);
         Arrays.parallelSort(sret);
         return sret;
+    }
+
+    public class Merger implements Runnable {
+        public void run() {
+            merge_files();
+        }
     }
 }
