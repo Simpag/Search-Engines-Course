@@ -12,6 +12,7 @@ import static ir.PersistentHashedIndex.DATA_SEPARATOR;
 import java.io.*;
 import java.util.*;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.*;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -37,7 +38,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
     public static final String MERGE_DATA_IP_FNAME = "merge_in_progress";
 
-    public static final int BATCHSIZE = 50_000;//10_000_000;
+    public static final int BATCHSIZE = 10_000_000; //50_000;//10_000_000;
 
     private int merges_completed = 0;
     
@@ -51,6 +52,9 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             file.seek( ptr ); 
             byte[] data = dataString.getBytes();
             file.write( data );
+
+            //ByteBuffer bb = file.getChannel().map(FileChannel.MapMode.READ_WRITE, ptr, data.length);
+            //bb.put(data);
             return data.length;
         } catch ( IOException e ) {
             e.printStackTrace();
@@ -114,9 +118,11 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
      *  Inserts this token in the main-memory hashtable.
      */
     private int lastDocID = -1;
+    private long tokensWritten = 0L;
     public void insert( String token, int docID, int offset ) {
-        if (index.size() >= BATCHSIZE && lastDocID != docID) {
+        if (tokensWritten >= BATCHSIZE && lastDocID != docID) {
             cleanup();
+            tokensWritten = 0L;
         }
 
         if (index.containsKey(token)) {
@@ -129,6 +135,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         }
 
         lastDocID = docID;
+        tokensWritten++;
     }
 
     /**

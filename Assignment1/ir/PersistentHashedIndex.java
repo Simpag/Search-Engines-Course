@@ -10,6 +10,7 @@ package ir;
 import java.io.*;
 import java.util.*;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.*;
 
 
@@ -27,7 +28,7 @@ import java.nio.charset.*;
 public class PersistentHashedIndex implements Index {
 
     /** The directory where the persistent index files are stored. */
-    public static final String INDEXDIR = "./index";
+    public static final String INDEXDIR = "./guardian_index"; // "./index";
 
     /** The dictionary file name */
     public static final String DICTIONARY_FNAME = "dictionary";
