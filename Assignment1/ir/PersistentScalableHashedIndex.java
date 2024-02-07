@@ -41,7 +41,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
      *  Writes data to the data file at a specified place.
      *
      *  @return The number of bytes written.
-     */ 
+     */
     int writeData(RandomAccessFile file, String dataString, long ptr ) {
         try {
             file.seek( ptr ); 
@@ -78,7 +78,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
      *  @param entry The key of this entry is assumed to have a fixed length
      *  @param ptr   The place in the dictionary file to store the entry
      */
-    void writeEntry(RandomAccessFile file, Entry entry, long ptr) {
+    /*void writeEntry(RandomAccessFile file, Entry entry, long ptr) {
         try {
             file.seek(ptr); 
             byte[] data = entry.get_bytes();
@@ -87,6 +87,17 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         } catch ( IOException e ) {
             e.printStackTrace();
             return;
+        }
+    }*/
+    void emptyDictBuffer(ArrayList<writeBuffer> buf, RandomAccessFile file) {
+        try {
+            Collections.sort(buf, (a,b)-> (int)(a.ptr-b.ptr));
+            for (writeBuffer b : buf) {
+                file.seek( b.ptr ); 
+                file.write( b.data );
+            }
+        } catch ( IOException e ) {
+            e.printStackTrace();
         }
     }
 
@@ -312,6 +323,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             FileReader freader = new FileReader(main_terms);
             BufferedReader br = new BufferedReader(freader);
             String token, write_data = "";
+            ArrayList<writeBuffer> dictBuffer = new ArrayList<writeBuffer>();
             while ((token = br.readLine()) != null) {
                 String[] main_sdata = get_positings_data(main_data, main_dict, token);
                 String[] merge_sdata = null;
@@ -336,9 +348,12 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                 long ptr = get_pointer_from_hash(hash);
                 
                 if (hashes_used[hash] == 0) {
-                    writeEntry(tempDict, e, ptr);
+                    //writeEntry(tempDict, e, ptr);
+                    dictBuffer.add(new writeBuffer(e.get_bytes(), ptr));
                     hashes_used[hash] = 1;
                 } else {
+                    emptyDictBuffer(dictBuffer, tempDict);
+                    dictBuffer.clear();
                     // Get a new pointer to store the current postings list
                     int new_hash = find_first_collision_free(hashes_used);
                     long new_ptr = get_pointer_from_hash(new_hash);
@@ -348,13 +363,16 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                     // Save the new pointer to the collision entry
                     Entry col_entry = response.entry;
                     col_entry.collision_ptr = new_ptr;
-                    writeEntry(tempDict, col_entry, response.ptr);
+                    //writeEntry(tempDict, col_entry, response.ptr);
+                    dictBuffer.add(new writeBuffer(col_entry.get_bytes(), response.ptr));
                     
                     // Write the entry to its new position
-                    writeEntry(tempDict, e, new_ptr);
+                    //writeEntry(tempDict, e, new_ptr);
+                    dictBuffer.add(new writeBuffer(e.get_bytes(), new_ptr));
                     hashes_used[new_hash] = 1;
                 }
             }
+            emptyDictBuffer(dictBuffer, tempDict);
             freader.close();
             br.close();
         } catch (Exception e) {
@@ -366,6 +384,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             FileReader freader = new FileReader(merge_terms);
             BufferedReader br = new BufferedReader(freader);
             String token;
+            ArrayList<writeBuffer> dictBuffer = new ArrayList<writeBuffer>();
             while ((token = br.readLine()) != null) {
                 if (tokensToBeMerged.contains(token)) {
                     continue;
@@ -384,9 +403,12 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                 long ptr = get_pointer_from_hash(hash);
                 
                 if (hashes_used[hash] == 0) {
-                    writeEntry(tempDict, e, ptr);
+                    //writeEntry(tempDict, e, ptr);
+                    dictBuffer.add(new writeBuffer(e.get_bytes(), ptr));
                     hashes_used[hash] = 1;
                 } else {
+                    emptyDictBuffer(dictBuffer, tempDict);
+                    dictBuffer.clear();
                     // Get a new pointer to store the current postings list
                     int new_hash = find_first_collision_free(hashes_used);
                     long new_ptr = get_pointer_from_hash(new_hash);
@@ -396,13 +418,16 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                     // Save the new pointer to the collision entry
                     Entry col_entry = response.entry;
                     col_entry.collision_ptr = new_ptr;
-                    writeEntry(tempDict, col_entry, response.ptr);
+                    //writeEntry(tempDict, col_entry, response.ptr);
+                    dictBuffer.add(new writeBuffer(col_entry.get_bytes(), response.ptr));
                     
                     // Write the entry to its new position
-                    writeEntry(tempDict, e, new_ptr);
+                    //writeEntry(tempDict, e, new_ptr);
+                    dictBuffer.add(new writeBuffer(e.get_bytes(), new_ptr));
                     hashes_used[new_hash] = 1;
                 }
             }
+            emptyDictBuffer(dictBuffer, tempDict);
             freader.close();
             br.close();
         } catch (Exception e) {

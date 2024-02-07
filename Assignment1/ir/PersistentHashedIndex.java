@@ -129,14 +129,15 @@ public class PersistentHashedIndex implements Index {
      */ 
     int writeData( String dataString, long ptr ) {
         try {
-            dataFile.seek( ptr ); 
+            dataFile.seek(ptr); 
             byte[] data = dataString.getBytes();
             dataFile.write( data );
             return data.length;
-        } catch ( IOException e ) {
+        } catch (Exception e) {
             e.printStackTrace();
-            return -1;
         }
+
+        return -1;
     }
 
 
@@ -166,18 +167,37 @@ public class PersistentHashedIndex implements Index {
      *  @param entry The key of this entry is assumed to have a fixed length
      *  @param ptr   The place in the dictionary file to store the entry
      */
+    public class writeBuffer {
+        public byte[] data;
+        public long ptr;
+        public writeBuffer(byte[] d, long p) {
+            data = d;
+            ptr = p;
+        }
+    }
+    ArrayList<writeBuffer> writeDictBuffer = new ArrayList<writeBuffer>();
     void writeEntry(Entry entry, long ptr) {
         //
         //  YOUR CODE HERE
         //
+        byte[] data = entry.get_bytes();
+        if (writeDictBuffer.size() < 1000) {
+            writeDictBuffer.add(new writeBuffer(data, ptr));
+        } else {
+            emptyDictBuffer();
+        }
+    }
+
+    private void emptyDictBuffer() {
         try {
-            dictionaryFile.seek(ptr); 
-            byte[] data = entry.get_bytes();
-            dictionaryFile.write(data);
-            return;
+            Collections.sort(writeDictBuffer, (a,b)-> (int)(a.ptr-b.ptr));
+            for (writeBuffer b : writeDictBuffer) {
+                dictionaryFile.seek( b.ptr ); 
+                dictionaryFile.write( b.data );
+            }
+            writeDictBuffer.clear();
         } catch ( IOException e ) {
             e.printStackTrace();
-            return;
         }
     }
 
@@ -407,6 +427,7 @@ public class PersistentHashedIndex implements Index {
                     writeEntry(e, ptr);
                     hashes_used[hash] = 1;
                 } else {
+                    emptyDictBuffer();
                     // Collision occured
                     collisions += 1;
                     // Get a new pointer to store the current postings list
@@ -426,6 +447,7 @@ public class PersistentHashedIndex implements Index {
                     // The above basically creates a linked list
                 }
             }
+            emptyDictBuffer();
         } catch ( IOException e ) {
             e.printStackTrace();
         }
