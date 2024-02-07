@@ -29,7 +29,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
-    public static final int BATCHSIZE = 1_000_000; //50_000;//10_000_000;
+    public static final int BATCHSIZE = 8_000_000; //50_000;//10_000_000;
 
     private ArrayList<Thread> created_threads = new ArrayList<Thread>(); // Store which files each thread is working on
 
@@ -114,7 +114,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     private long tokensWritten = 0L;
     public void insert( String token, int docID, int offset ) {
         if (tokensWritten >= BATCHSIZE && lastDocID != docID) {
-            write_intermediate();
+            write_intermediate(true);
             tokensWritten = 0L;
         }
 
@@ -131,11 +131,12 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         tokensWritten++;
     }
 
-    private void write_intermediate() {
+    private void write_intermediate(boolean new_file) {
+        System.err.println("Writing intermediate!");
         writeTerms(index.keySet().toArray(new String[index.size()]), INDEXDIR + "/" + TERMS_FNAME + current_extension);
-        writeIndex();
+        writeIndex(false);
         try {
-            writeDocInfo();
+            writeDocInfo(INDEXDIR + "/" + DOCINFO_FNAME + current_extension);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -157,37 +158,45 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         String new_data_location = INDEXDIR + "/" + DATA_FNAME + current_extension;
         String new_dict_location = INDEXDIR + "/" + DICTIONARY_FNAME + current_extension;
         //String new_terms_location = INDEXDIR + "/" + TERMS_FNAME + created_indicies.size();
-        System.err.println("New file: " + new_data_location);
 
         free = 0L;
         index = new HashMap<String, PostingsList>(); //.clear();
         docLengths.clear();
         docNames.clear();
-        try {
-            dictionaryFile = new RandomAccessFile(new_dict_location, "rw" );
-            dataFile = new RandomAccessFile(new_data_location, "rw" );
-        } catch ( IOException e ) {
-            e.printStackTrace();
+        if (new_file){
+            System.err.println("New file: " + new_data_location);
+            try {
+                dictionaryFile = new RandomAccessFile(new_dict_location, "rw" );
+                dataFile = new RandomAccessFile(new_data_location, "rw" );
+            } catch ( IOException e ) {
+                e.printStackTrace();
+            }
         }
 
         if (created_indicies.size() > 1) {
-            String main_data = INDEXDIR + "/" + DATA_FNAME + created_indicies.get(0);
-            String main_dict = INDEXDIR + "/" + DICTIONARY_FNAME + created_indicies.get(0);
-            String main_terms = INDEXDIR + "/" + TERMS_FNAME + created_indicies.get(0);
-            String merge_data = INDEXDIR + "/" + DATA_FNAME + created_indicies.get(1);
-            String merge_dict = INDEXDIR + "/" + DICTIONARY_FNAME + created_indicies.get(1);
-            String merge_terms = INDEXDIR + "/" + TERMS_FNAME + created_indicies.get(1);
+            String add1 = created_indicies.remove(0);
+            String add2 = created_indicies.remove(0);
 
-            Merger m = new Merger(main_data, main_dict, main_terms, merge_data, merge_dict, merge_terms, created_indicies.get(0));
+            if (add1.equals(add2))
+                System.err.println("Wtf");
+
+            String main_data = INDEXDIR + "/" + DATA_FNAME + add1;
+            String main_dict = INDEXDIR + "/" + DICTIONARY_FNAME + add1;
+            String main_terms = INDEXDIR + "/" + TERMS_FNAME + add1;
+            String main_docinfo = INDEXDIR + "/" + DOCINFO_FNAME + add1;
+            String merge_data = INDEXDIR + "/" + DATA_FNAME + add2;
+            String merge_dict = INDEXDIR + "/" + DICTIONARY_FNAME + add2;
+            String merge_terms = INDEXDIR + "/" + TERMS_FNAME + add2;
+            String merge_docinfo = INDEXDIR + "/" + DOCINFO_FNAME + add2;
+
+            Merger m = new Merger(main_data, main_dict, main_terms, main_docinfo, merge_data, merge_dict, merge_terms, merge_docinfo, Long.valueOf(System.currentTimeMillis()) + "");
             Thread thread = new Thread(m);
             created_threads.add(thread);
             thread.start();
-
-            created_indicies.remove(0);
-            created_indicies.remove(0);
         }
 
-        created_indicies.add(current_extension);
+        if (new_file)
+            created_indicies.add(current_extension);
     }
 
     /**
@@ -195,24 +204,77 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
      */
     @Override
     public void cleanup() {
-        System.err.println( index.keySet().size() + " unique words" );
-        System.err.print( "Writing index to disk... ");
+        System.err.println("Finished indexing." );
+        System.err.print( "Waiting for merges to complete.. ");
 
         //if (created_indicies.size() <= 0) {
         //    waitForThreads(); //????
         //    return;
         //}
-        write_intermediate();
-        System.err.println("mine!");
+        write_intermediate(false);
 
-        System.err.println( "done!" );
+        try {
+            while (created_indicies.size() != 1 || created_threads.size() > 0) {
+                Thread.sleep(500);
+                ArrayList<Thread> rmv = new ArrayList<Thread>();
+                for (Thread t : created_threads) {
+                    if (t.getState() == Thread.State.TERMINATED)
+                        rmv.add(t);
+                }
+                created_threads.removeAll(rmv);
+
+                if (created_indicies.size() > 1) {
+                    String add1 = created_indicies.remove(0);
+                    String add2 = created_indicies.remove(0);
+        
+                    if (add1.equals(add2))
+                        System.err.println("Wtf");
+        
+                    String main_data = INDEXDIR + "/" + DATA_FNAME + add1;
+                    String main_dict = INDEXDIR + "/" + DICTIONARY_FNAME + add1;
+                    String main_terms = INDEXDIR + "/" + TERMS_FNAME + add1;
+                    String main_docinfo = INDEXDIR + "/" + DOCINFO_FNAME + add1;
+                    String merge_data = INDEXDIR + "/" + DATA_FNAME + add2;
+                    String merge_dict = INDEXDIR + "/" + DICTIONARY_FNAME + add2;
+                    String merge_terms = INDEXDIR + "/" + TERMS_FNAME + add2;
+                    String merge_docinfo = INDEXDIR + "/" + DOCINFO_FNAME + add2;
+        
+                    Merger m = new Merger(main_data, main_dict, main_terms, main_docinfo, merge_data, merge_dict, merge_terms, merge_docinfo, Long.valueOf(System.currentTimeMillis()) + "");
+                    Thread thread = new Thread(m);
+                    created_threads.add(thread);
+                    thread.start();
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            File f1 = new File(INDEXDIR + "/" + DATA_FNAME + created_indicies.get(0));
+            File f2 = new File(INDEXDIR + "/" + DICTIONARY_FNAME + created_indicies.get(0));
+            File f3 = new File(INDEXDIR + "/" + TERMS_FNAME + created_indicies.get(0));
+            File f4 = new File(INDEXDIR + "/" + DOCINFO_FNAME + created_indicies.get(0));
+
+            f1.renameTo(new File(INDEXDIR + "/" + DATA_FNAME));
+            f2.renameTo(new File(INDEXDIR + "/" + DICTIONARY_FNAME));
+            f3.renameTo(new File(INDEXDIR + "/" + TERMS_FNAME));
+            f4.renameTo(new File(INDEXDIR + "/" + DOCINFO_FNAME));
+            
+            dataFile = new RandomAccessFile(INDEXDIR + "/" + DATA_FNAME, "rw");
+            dictionaryFile = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME, "rw");
+            readDocInfo();
+        } catch ( IOException e ) {
+            e.printStackTrace();
+        }
+
+        System.err.println( "Last done!" );
     }
 
-    private void merge_files(String main_data_location, String main_dict_location, String main_terms_location,
-                             String merge_data_location, String merge_dict_location, String merge_terms_location,
+    private void merge_files(String main_data_location, String main_dict_location, String main_terms_location, String main_docinfo,
+                             String merge_data_location, String merge_dict_location, String merge_terms_location, String merge_docinfo,
                              String new_append) {
         
-        System.err.println("Started merge: " + merge_data_location.charAt(merge_data_location.length()-1));
+        System.err.println("Started merge: " + new_append);
 
         RandomAccessFile tempData = null;
         RandomAccessFile tempDict = null;
@@ -235,6 +297,13 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         long free_ptr = 0;
 
         ArrayList<String> tokensToBeMerged = IntersectionOfTerms(main_terms_location, merge_terms_location);
+        /*ArrayList<String> test1 = readTerms(main_terms_location);
+        ArrayList<String> test2 = readTerms(merge_terms_location);
+        Set<String> test3 = new HashSet<String>(test1);
+        test3.retainAll(test2);
+        System.err.println(test3.size() + " : " + tokensToBeMerged.size() + " : " + test1.size() + " : " + test2.size());
+        tokensToBeMerged = new ArrayList<String>(test3);*/
+        
 
         // Rewrite the datafile, rewrite entry if postingslist needs to be merged
         int[] hashes_used = new int[(int)TABLESIZE];
@@ -242,29 +311,17 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             File main_terms = new File(main_terms_location);
             FileReader freader = new FileReader(main_terms);
             BufferedReader br = new BufferedReader(freader);
-            String token;
-            String[] d = get_positings_data(main_data, main_dict, "$1200");
-            System.err.println("Fucking works here too! " + d[0] + ": " + d.length);
+            String token, write_data = "";
             while ((token = br.readLine()) != null) {
                 String[] main_sdata = get_positings_data(main_data, main_dict, token);
                 String[] merge_sdata = null;
 
-                if (main_sdata == null) {
-                    System.err.println("Here:!!!");
-                    System.err.println(token.equals("$1200"));
-                    //String[] c  = get_positings_data(main_data, main_dict, "$1100");
-                    //System.err.println(c[0]);
-                    System.exit(0);
-                }
-                
-
-                String write_data = String.join(DATA_SEPARATOR, main_sdata);
-
                 if (tokensToBeMerged.contains(token)) {
                     // merge 
                     merge_sdata = get_positings_data(merge_data, merge_dict, token);
-                    merge_sdata[0] = "";
-                    write_data += String.join(DATA_SEPARATOR, merge_sdata); // replace the starting item "key" with separator
+                    write_data = mergeData(main_sdata, merge_sdata);
+                } else {
+                    write_data = String.join(DATA_SEPARATOR, main_sdata);
                 }
                 
                 // Write the data to the datafile
@@ -272,7 +329,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                 // Save the starting pointer and ending pointer
                 Entry e = new Entry(free_ptr, free_ptr+written_data); // this is the postings list for token "key" 
                 // Increment the starting pointer
-                free_ptr += written_data+1; // +1 ?
+                free_ptr += written_data; // +1 ?
                 // Get hash of token
                 int hash = hash_function(token);
                 // Get the pointer corresponding to the location in the dictionary
@@ -320,7 +377,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                 // Save the starting pointer and ending pointer
                 Entry e = new Entry(free_ptr, free_ptr+written_data); // this is the postings list for token "key" 
                 // Increment the starting pointer
-                free_ptr += written_data+1; // +1 ?
+                free_ptr += written_data; // +1 ?
                 // Get hash of token
                 int hash = hash_function(token);
                 // Get the pointer corresponding to the location in the dictionary
@@ -353,6 +410,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         }
 
         mergeTerms(main_terms_location, merge_terms_location, INDEXDIR + "/" + TERMS_FNAME + new_append);
+        mergeDocInfo(main_docinfo, merge_docinfo, INDEXDIR + "/" + DOCINFO_FNAME + new_append);
 
         // Delete files and rename temp
         try {
@@ -377,12 +435,26 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
             tempData.close();
             tempDict.close();
+
+            File f7 = new File(main_docinfo);
+            File f8 = new File(merge_docinfo);
+
+            f7.delete();
+            f8.delete();
+
+            /*File f7 = new File(INDEXDIR + "/" + "merge_data" + new_append);
+            File f8 = new File(INDEXDIR + "/" + "merge_dict" + new_append);
+            File f9 = new File(INDEXDIR + "/" + TERMS_FNAME + "_merge" + new_append);
+
+            f7.renameTo(f1);
+            f8.renameTo(f2);
+            f9.renameTo(f3);*/
         } catch ( IOException e ) {
             e.printStackTrace();
         }
         
         created_indicies.add(new_append);
-        System.err.println("Finished merge: " + merge_data_location.charAt(merge_data_location.length()-1));
+        System.err.println("Finished merge: " + new_append);
 
         /*
          * Read all the tokens
@@ -478,30 +550,154 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         }
     }
 
+    private void mergeDocInfo(String main_terms, String merge_terms, String outputFile) {
+        try {
+            FileOutputStream fout = new FileOutputStream(outputFile);
+            File fmain = new File(main_terms);
+            File fmerge = new File(merge_terms);
+            FileReader frmain = new FileReader(fmain);
+            BufferedReader brmain = new BufferedReader(frmain);
+            FileReader frmerge = new FileReader(fmerge);
+            BufferedReader brmerge = new BufferedReader(frmerge);
+            String line1 = brmain.readLine();
+            String line2 = brmerge.readLine();
+            String[] data1 = line1.split(";");
+            String[] data2 = line2.split(";");
+            while (line1 != null && line2 != null) {
+                int i = Integer.parseInt(data1[0]);
+                int j = Integer.parseInt(data2[0]);
+                if (i == j) {
+                    fout.write((line1+"\n").getBytes());
+                    line1 = brmain.readLine();
+                    line2 = brmerge.readLine();
+                    if (line1 != null && line2 != null) {
+                        data1 = line1.split(";");
+                        data2 = line2.split(";");
+                    }
+                } else if (i < j) {
+                    fout.write((line1+"\n").getBytes());
+                    line1 = brmain.readLine();
+                    if (line1 != null)
+                        data1 = line1.split(";");
+                } else {
+                    fout.write((line2+"\n").getBytes());
+                    line2 = brmerge.readLine();
+                    if (line2 != null)
+                        data2 = line2.split(";");
+                }
+            }
+
+            while (line1 != null) {
+                fout.write((line1+"\n").getBytes());
+                line1 = brmain.readLine();
+            }
+            
+            while (line2 != null) {
+                fout.write((line2+"\n").getBytes());
+                line2 = brmerge.readLine();
+            }
+
+            fout.close();
+            frmain.close();
+            brmain.close();
+            frmerge.close();
+            brmerge.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /*private String mergeData(String[] main_data, String[] merge_data) {
+        String write_data = String.join(DATA_SEPARATOR, main_data);
+        merge_data[0] = "";
+        write_data += String.join(DATA_SEPARATOR, merge_data);
+
+        // Right now PostingsList.deserialize sorts the deserialized postingslist.
+        // Should change it so that all the docID's are written in order 
+
+        return write_data;
+    }*/
+
+    private String mergeData(String[] main_data, String[] merge_data) {
+        String ret = main_data[0];  
+        int i = 1, j = 1;          
+        while (i < main_data.length && j < merge_data.length) {
+            int mainDocID = Integer.parseInt(main_data[i]);
+            int mergeDocID = Integer.parseInt(merge_data[j]);
+            if (mainDocID == mergeDocID) {
+                System.err.println("This should not happen!!=?!==!=!=?!?!??!?!??!??!!!!");
+            } else if (mainDocID < mergeDocID) {
+                Idisslikejava resp = condenseData(main_data, i);
+                ret += DATA_SEPARATOR + resp.data;
+                i = resp.ptr;
+            } else {
+                Idisslikejava resp = condenseData(merge_data, j);
+                ret += DATA_SEPARATOR + resp.data;
+                j = resp.ptr;
+            }
+        }
+
+        while (i < main_data.length) {
+            ret += DATA_SEPARATOR + main_data[i++];
+        }
+        
+        while (j < merge_data.length) {
+            ret += DATA_SEPARATOR + merge_data[j++];
+        }
+
+        return ret;
+    }
+
+    public class Idisslikejava {
+        public String data;
+        public int ptr;
+        public Idisslikejava(String d, int p) {
+            this.data = d;
+            this.ptr = p;
+        }
+    }
+    private Idisslikejava condenseData(String[] data, int i) {
+        String ret = "";
+        String docID = data[i++];
+        String score = data[i++];
+        int number_of_offsets = Integer.valueOf(data[i++]);
+        ret = docID + DATA_SEPARATOR + score + DATA_SEPARATOR + number_of_offsets;
+        for (int j = 0; j < number_of_offsets; j++) {
+            String offset = data[i++];
+            ret += DATA_SEPARATOR + offset;
+        }
+
+        return new Idisslikejava(ret, i);
+    }
+
     public class Merger extends Thread {
         private String merge_data_location;
         private String merge_dict_location;
         private String merge_terms_location;
+        private String merge_docinfo;
         private String main_data_location;
         private String main_dict_location; 
         private String main_terms_location;
+        private String main_docinfo;
         private String new_append;
-        public Merger(String main_data_location, String main_dict_location, String main_terms_location,
-                      String merge_data_location, String merge_dict_location, String merge_terms_location,
+        public Merger(String main_data_location, String main_dict_location, String main_terms_location, String main_docinfo,
+                      String merge_data_location, String merge_dict_location, String merge_terms_location, String merge_docinfo,
                       String new_append) {
             super();
             this.main_data_location = main_data_location;
             this.main_dict_location = main_dict_location;
             this.main_terms_location = main_terms_location;
+            this.main_docinfo = main_docinfo;
             this.merge_data_location = merge_data_location;
             this.merge_dict_location = merge_dict_location;
             this.merge_terms_location = merge_terms_location;
+            this.merge_docinfo = merge_docinfo;
             this.new_append = new_append;
         }
 
         public void run() {
-            merge_files(main_data_location, main_dict_location, main_terms_location, 
-                        merge_data_location, merge_dict_location, merge_terms_location,
+            merge_files(main_data_location, main_dict_location, main_terms_location, main_docinfo,
+                        merge_data_location, merge_dict_location, merge_terms_location, merge_docinfo,
                         new_append);
                 
         }

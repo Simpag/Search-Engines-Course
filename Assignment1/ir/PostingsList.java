@@ -8,6 +8,7 @@
 package ir;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.StringJoiner;
 
@@ -75,6 +76,8 @@ public class PostingsList {
                 p.insert(docID, score, offset);
             }
         }
+
+        //Collections.sort(p.list, (o1, o2) -> o1.docID - o2.docID);
 
         return p;
     }

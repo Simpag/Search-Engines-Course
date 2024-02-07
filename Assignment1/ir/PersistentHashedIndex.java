@@ -44,7 +44,7 @@ public class PersistentHashedIndex implements Index {
     public static final String DOCINFO_FNAME = "docInfo";
 
     /** The dictionary hash table on disk can fit this many entries. */
-    public static final long TABLESIZE = 611953L; //3_503_119L //611953L
+    public static final long TABLESIZE = 3_000_017L; //3_503_119L //611953L
 
     /** The dictionary hash table is stored in this file. */
     RandomAccessFile dictionaryFile;
@@ -210,7 +210,17 @@ public class PersistentHashedIndex implements Index {
      * @throws IOException  { exception_description }
      */
     protected void writeDocInfo() throws IOException {
-        FileOutputStream fout = new FileOutputStream( INDEXDIR + "/docInfo", true);
+        FileOutputStream fout = new FileOutputStream( INDEXDIR + "/docInfo");
+        for ( Map.Entry<Integer,String> entry : docNames.entrySet() ) {
+            Integer key = entry.getKey();
+            String docInfoEntry = key + ";" + entry.getValue() + ";" + docLengths.get(key) + "\n";
+            fout.write( docInfoEntry.getBytes() );
+        }
+        fout.close();
+    }
+
+    protected void writeDocInfo(String fname) throws IOException {
+        FileOutputStream fout = new FileOutputStream(fname);
         for ( Map.Entry<Integer,String> entry : docNames.entrySet() ) {
             Integer key = entry.getKey();
             String docInfoEntry = key + ";" + entry.getValue() + ";" + docLengths.get(key) + "\n";
@@ -368,12 +378,13 @@ public class PersistentHashedIndex implements Index {
     /**
      *  Write the index to files.
      */
-    public void writeIndex() {
+    public void writeIndex(boolean write_doc_info) {
         int collisions = 0;
         int[] hashes_used = new int[(int)TABLESIZE];
         try {
             // Write the 'docNames' and 'docLengths' hash maps to a file
-            writeDocInfo();
+            if (write_doc_info)
+                writeDocInfo();
 
             // Write the dictionary and the postings list
 
@@ -386,7 +397,7 @@ public class PersistentHashedIndex implements Index {
                 // Save the starting pointer and ending pointer
                 Entry e = new Entry(free, free+written_data); // this is the postings list for token "key" 
                 // Increment the starting pointer
-                free += written_data+1; // +1 ?
+                free += written_data; // +1 ?
                 // Get hash of token
                 int hash = hash_function(key);
                 // Get the pointer corresponding to the location in the dictionary
@@ -516,7 +527,7 @@ public class PersistentHashedIndex implements Index {
     public void cleanup() {
         System.err.println( index.keySet().size() + " unique words" );
         System.err.print( "Writing index to disk..." );
-        writeIndex();
+        writeIndex(true);
         System.err.println( "done!" );
     }
 
