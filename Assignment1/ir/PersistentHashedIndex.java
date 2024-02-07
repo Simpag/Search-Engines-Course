@@ -78,7 +78,7 @@ public class PersistentHashedIndex implements Index {
         public Entry(long start, long end) {
             this.start_ptr = start;
             this.end_ptr = end;
-            this.collision_ptr = -1;
+            this.collision_ptr = -1L;
         }
 
         public Entry(byte[] data) {
@@ -386,7 +386,7 @@ public class PersistentHashedIndex implements Index {
                 // Save the starting pointer and ending pointer
                 Entry e = new Entry(free, free+written_data); // this is the postings list for token "key" 
                 // Increment the starting pointer
-                free += written_data+1; // +1 ?
+                free += written_data; // +1 ?
                 // Get hash of token
                 int hash = hash_function(key);
                 // Get the pointer corresponding to the location in the dictionary
@@ -435,7 +435,7 @@ public class PersistentHashedIndex implements Index {
         while (true) {
             // Get the entry at the collision hash value
             e = readEntry(ptr);
-            if (e.collision_ptr == -1) {
+            if (e.collision_ptr == -1L) {
                 break; // found the end of the linked list
             } else {
                 ptr = e.collision_ptr;
@@ -481,7 +481,7 @@ public class PersistentHashedIndex implements Index {
             if (data[0].equals(token))
                 break;
 
-            if (ptr == -1)                
+            if (ptr == -1L)                
                 return null; // token does not exsist
 
         }
