@@ -36,11 +36,13 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     /** The temp-merge data file name */
     public static final String MERGE_DATA_FNAME = "data_merge";
 
-    public static final String MERGE_DATA_IP_FNAME = "merge_in_progress";
+    public static final String MERGE_TERMS_FNAME = "terms_merge";
 
-    public static final int BATCHSIZE = 10_000_000; //50_000;//10_000_000;
+    public static final int BATCHSIZE = 3_000_000; //50_000;//10_000_000;
 
     private int merges_completed = 0;
+
+    private boolean merge_in_progress = false;
     
     /**
      *  Writes data to the data file at a specified place.
@@ -106,8 +108,6 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             byte[] data = new byte[Entry.byte_size];
             file.readFully( data );
             return new Entry(data);
-        } catch (EOFException e) {
-            return null;
         } catch ( IOException e ) {
             e.printStackTrace();
             return null;
@@ -147,17 +147,13 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
  
         String merge_data_location = INDEXDIR + "/" + MERGE_DATA_FNAME + Integer.toString(merges_completed);
         String merge_dict_location = INDEXDIR + "/" + MERGE_DICTIONARY_FNAME + Integer.toString(merges_completed++);
-        String merge_ip_location = INDEXDIR + "/" + MERGE_DATA_IP_FNAME;
 
         // Wait until file is gone
-        File f2 = new File(merge_ip_location);
-        if (f2.exists()) {
+        if (merge_in_progress) {
             try {
                 System.err.print("Waiting for merge to finish....");
-                while (f2.exists()) {
-                    // it will sleep the main thread for 1 sec
+                while (merge_in_progress) {
                     Thread.sleep(500);
-                    f2 = new File(merge_ip_location);
                 }
             }
             catch (Exception e) {
@@ -179,18 +175,24 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             } catch ( IOException e ) {
                 e.printStackTrace();
             }
+            merge_in_progress = true;
+            String mdata = INDEXDIR + "/" + MERGE_DATA_FNAME + Integer.toString(merges_completed-2);
+            String mdict = INDEXDIR + "/" + MERGE_DICTIONARY_FNAME + Integer.toString(merges_completed-2);
+            String mterms = INDEXDIR + "/" + MERGE_TERMS_FNAME + Integer.toString(merges_completed-2);
+            writeTerms(index.keySet().toArray(new String[index.size()]), mterms);
             writeIndex();
             //merge_files();
-            Merger m = new Merger();
+            Merger m = new Merger(mdata, mdict, mterms);
             Thread thread = new Thread(m);
             thread.start();
         } else {
+            writeTerms(index.keySet().toArray(new String[index.size()]), INDEXDIR + "/" + TERMS_FNAME);
             writeIndex();
         }
-
+        
         // Make a new files and reset
         free = 0L;
-        index.clear();
+        index = new HashMap<String, PostingsList>();
         docLengths.clear();
         docNames.clear();
         try {
@@ -203,12 +205,11 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         System.err.println( "done!" );
     }
 
-    private void merge_files() {
-        String merge_ip_location = INDEXDIR + "/" + MERGE_DATA_IP_FNAME;
+    private void merge_files(String merge_data_location, String merge_dict_location, String merge_terms_location) {
+        System.err.println("Started merge: " + merge_data_location.charAt(merge_data_location.length()-1));
         String main_data_location = INDEXDIR + "/" + DATA_FNAME;
         String main_dict_location = INDEXDIR + "/" + DICTIONARY_FNAME; 
-        String merge_data_location = INDEXDIR + "/" + MERGE_DATA_FNAME + Integer.toString(merges_completed-2);
-        String merge_dict_location = INDEXDIR + "/" + MERGE_DICTIONARY_FNAME + Integer.toString(merges_completed-2); // -2 because of first file different name
+        String main_tokens_location = INDEXDIR + "/" + TERMS_FNAME;
 
         RandomAccessFile tempData = null;
         RandomAccessFile tempDict = null;
@@ -217,10 +218,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         RandomAccessFile merge_data = null;
         RandomAccessFile merge_dict = null;
 
-        File merge_ip = new File(merge_ip_location);
-
         try {
-            merge_ip.createNewFile();
             tempData = new RandomAccessFile( INDEXDIR + "/tempdata", "rw" );
             tempDict = new RandomAccessFile( INDEXDIR + "/tempdict", "rw" );
             main_data = new RandomAccessFile(main_data_location, "rw" );
@@ -231,47 +229,42 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             e.printStackTrace();
         }
 
-        // Wait until merge data is written...
-        File data_checker = new File(merge_data_location);
-        File dict_checker = new File(merge_dict_location);
-        try {
-            while (!(data_checker.length() > 0 && dict_checker.length() > 0)) {
-                // it will sleep the main thread for 1 sec
-                Thread.sleep(500);
-                data_checker = new File(merge_data_location);
-                dict_checker = new File(merge_dict_location);
-            }
-        }
-        catch (Exception e) {
-            System.err.println(e);
-        }
-
         long free_ptr = 0;
 
-        String[] main_tokens = get_tokens(main_dict, main_data);
-        String[] merge_tokens = get_tokens(merge_dict, merge_data);
+        ArrayList<String> merge_tokens = readTerms(merge_terms_location);
+        ArrayList<String> main_tokens = readTerms(main_tokens_location);
+        ArrayList<String> tokensToBeMerged = IntersectionOfTerms(merge_tokens.toArray(new String[merge_tokens.size()]), 
+                                                            main_tokens.toArray(new String[main_tokens.size()]));
+        merge_tokens.removeAll(tokensToBeMerged);
 
-        // Store all of the data from the main data file (Usually bigger)
+        // Rewrite the datafile, rewrite entry if postingslist needs to be merged
         int[] hashes_used = new int[(int)TABLESIZE];
-        for (String token : main_tokens) {
-            String[] main_sdata = get_positings_data(main_dict, main_data, token);
+        //try {
+        //    File file = new File(INDEXDIR + TERMS_FNAME);
+        //    FileReader freader = new FileReader(file);
+        //    BufferedReader br = new BufferedReader(freader);
+        //    String key;
+        //    while ((key = br.readLine()) != null) {
+        for (String key : main_tokens) {
+            String[] main_sdata = get_positings_data(main_dict, main_data, key);
             String[] merge_sdata = null;
             String write_data = String.join(DATA_SEPARATOR, main_sdata);
-            if (contains_token(merge_tokens, token)) {
-                merge_sdata = get_positings_data(merge_dict, merge_data, token);
+
+            if (tokensToBeMerged.contains(key)) {
+                // merge 
+                merge_sdata = get_positings_data(merge_dict, merge_data, key);
                 merge_sdata[0] = "";
-                write_data += String.join(DATA_SEPARATOR, merge_sdata);
+                write_data += String.join(DATA_SEPARATOR, merge_sdata); // replace the starting item "key" with separator
             }
             
-
             // Write the data to the datafile
             int written_data = writeData(tempData, write_data, free_ptr);
             // Save the starting pointer and ending pointer
             Entry e = new Entry(free_ptr, free_ptr+written_data); // this is the postings list for token "key" 
             // Increment the starting pointer
-            free_ptr += written_data+1; // +1 ?
+            free_ptr += written_data; // +1 ?
             // Get hash of token
-            int hash = hash_function(token);
+            int hash = hash_function(key);
             // Get the pointer corresponding to the location in the dictionary
             long ptr = get_pointer_from_hash(hash);
             
@@ -293,27 +286,24 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                 // Write the entry to its new position
                 writeEntry(tempDict, e, new_ptr);
                 hashes_used[new_hash] = 1;
-                // The above basically creates a linked list
             }
         }
 
-        for (String token : merge_tokens) {
-            if (contains_token(main_tokens, token)){
-                continue;
-            }
-            
-            String merge_sdata[] = get_positings_data(merge_dict, merge_data, token);
+        //} catch (Exception e) {
+        //    e.printStackTrace();
+        //}
+        
+        for (String key : merge_tokens) {
+            String merge_sdata[] = get_positings_data(merge_dict, merge_data, key);
             String write_data = String.join(DATA_SEPARATOR, merge_sdata);
-            
-
             // Write the data to the datafile
             int written_data = writeData(tempData, write_data, free_ptr);
             // Save the starting pointer and ending pointer
             Entry e = new Entry(free_ptr, free_ptr+written_data); // this is the postings list for token "key" 
             // Increment the starting pointer
-            free_ptr += written_data+1; // +1 ?
+            free_ptr += written_data; // +1 ?
             // Get hash of token
-            int hash = hash_function(token);
+            int hash = hash_function(key);
             // Get the pointer corresponding to the location in the dictionary
             long ptr = get_pointer_from_hash(hash);
             
@@ -335,8 +325,15 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                 // Write the entry to its new position
                 writeEntry(tempDict, e, new_ptr);
                 hashes_used[new_hash] = 1;
-                // The above basically creates a linked list
             }
+        }
+
+        main_tokens.addAll(merge_tokens);
+        writeTerms(main_tokens.toArray(new String[main_tokens.size()]), main_tokens_location);
+        try {
+            writeDocInfo();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         // Delete files and rename temp
@@ -350,27 +347,29 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             File f2 = new File(main_dict_location);
             File f3 = new File(merge_data_location);
             File f4 = new File(merge_dict_location);
+            File f5 = new File(merge_terms_location);
 
             f1.delete();
             f2.delete();
             f3.delete();
             f4.delete();
+            f5.delete();
 
             tempData.close();
             tempData.close();
             
-            File f5 = new File(INDEXDIR + "/tempdata");
-            File f6 = new File(INDEXDIR + "/tempdict");
+            File f6 = new File(INDEXDIR + "/tempdata");
+            File f7 = new File(INDEXDIR + "/tempdict");
 
-            f5.renameTo(new File(main_data_location));
-            f6.renameTo(new File(main_dict_location));
+            f6.renameTo(f1);
+            f7.renameTo(f2);
 
             //System.err.println("Deleted and loaded: " + merge_data_location + " : " + merge_dict_location);
         } catch ( IOException e ) {
             e.printStackTrace();
         }
-
-        merge_ip.delete();
+        
+        merge_in_progress = false;
 
         /*
          * Read all the tokens
@@ -424,41 +423,19 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         return ret_data;
     }
 
-    private boolean contains_token(String[] arr, String token) {
-        int index = Arrays.binarySearch(arr, token);
-
-        return index>0;
-    }
-
-    private String[] get_tokens(RandomAccessFile dict, RandomAccessFile data) {
-        ArrayList<String> ret = new ArrayList<String>();
-
-        int hash = 0;
-        while (hash < TABLESIZE) {
-            long ptr = get_pointer_from_hash(hash);
-            Entry e = readEntry(dict, ptr);
-
-            if (e == null) // end of dict file
-            {
-                break;
-            }
-            
-            if (e.end_ptr > 0) {
-                String sdata[] = readData(data, e.start_ptr, (int)(e.end_ptr-e.start_ptr)).split(DATA_SEPARATOR);
-                ret.add(sdata[0]);
-            }
-
-            hash++;
+    public class Merger implements Runnable {
+        private String merge_data_location;
+        private String merge_dict_location;
+        private String merge_terms_location;
+        public Merger(String merge_data_location, String merge_dict_location, String merge_terms_location) {
+            super();
+            this.merge_data_location = merge_data_location;
+            this.merge_dict_location = merge_dict_location;
+            this.merge_terms_location = merge_terms_location;
         }
 
-        String[] sret = ret.toArray(new String[ret.size()]);
-        Arrays.parallelSort(sret);
-        return sret;
-    }
-
-    public class Merger implements Runnable {
         public void run() {
-            merge_files();
+            merge_files(merge_data_location, merge_dict_location, merge_terms_location);
         }
     }
 }

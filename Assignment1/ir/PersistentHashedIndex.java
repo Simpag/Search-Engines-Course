@@ -12,6 +12,7 @@ import java.util.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.*;
+import java.security.spec.ECFieldF2m;
 
 
 /*
@@ -209,7 +210,7 @@ public class PersistentHashedIndex implements Index {
      * @throws IOException  { exception_description }
      */
     protected void writeDocInfo() throws IOException {
-        FileOutputStream fout = new FileOutputStream( INDEXDIR + "/docInfo" );
+        FileOutputStream fout = new FileOutputStream( INDEXDIR + "/docInfo", true);
         for ( Map.Entry<Integer,String> entry : docNames.entrySet() ) {
             Integer key = entry.getKey();
             String docInfoEntry = key + ";" + entry.getValue() + ";" + docLengths.get(key) + "\n";
@@ -238,6 +239,131 @@ public class PersistentHashedIndex implements Index {
         }
         freader.close();
     }
+
+    // ========================================================================
+    /**
+     *  Writes the tokens to file.
+     *
+     * @throws IOException  { exception_description }
+     */
+    protected void writeTerms(String[] terms, String fileName) {
+        try {
+            FileOutputStream fout = new FileOutputStream(fileName);
+            //String[] terms = new String[index.size()];
+            //terms = index.keySet().toArray(terms);
+            Arrays.sort(terms);
+            for (String token : terms) {
+                String w = token + "\n";
+                fout.write(w.getBytes());
+            }
+            fout.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    protected ArrayList<String> readTerms(String fileName) {
+        ArrayList<String> ret = new ArrayList<String>();
+        try {
+            File file = new File(fileName);
+            FileReader freader = new FileReader(file);
+            BufferedReader br = new BufferedReader(freader);
+            String line;
+            while ((line = br.readLine()) != null) {
+                ret.add(line);
+            }
+            freader.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return ret;
+    }
+
+    protected ArrayList<String> IntersectionOfTerms(String[] terms1, String[] terms2) {
+        Arrays.sort(terms1);
+        Arrays.sort(terms2);
+        int i = 0, j = 0;
+        ArrayList<String> ret = new ArrayList<String>();
+
+        while (i < terms1.length && j < terms2.length) {
+            if (terms1[i].equals(terms2[j])) {
+                ret.add(terms1[i]);
+                i++; j++;
+            } else if (terms1[i].compareTo(terms2[j]) < 0) {
+                i++;
+            } else {
+                j++;
+            }
+        }
+
+ 
+
+        if (ret.size() > 0) {
+            return ret;
+        }
+
+        return null;
+    }
+
+    protected ArrayList<String> IntersectionOfTerms(String file1, String file2) {
+        ArrayList<String> ret = new ArrayList<String>();
+
+        try {
+            File f1 = new File(file1);
+            FileReader freader1 = new FileReader(f1);
+            BufferedReader br1 = new BufferedReader(freader1);
+
+            File f2 = new File(file2);
+            FileReader freader2 = new FileReader(f2);
+            BufferedReader br2 = new BufferedReader(freader2);
+
+            String term1 = "", term2 = "";
+            boolean readNextLine1 = true, readNextLine2 = true;
+            while (true) {
+                if (readNextLine1) {
+                    term1 = br1.readLine();
+                    readNextLine1 = false;
+                    if (term1 == null) {
+                        break;
+                    }
+                }
+                if (readNextLine2) {
+                    term2 = br2.readLine();
+                    readNextLine2 = false;
+                    if (term2 == null) {
+                        break;
+                    }
+                }
+
+                if (term1.equals(term2)) {
+                    ret.add(term1);
+                    readNextLine1 = true;
+                    readNextLine2 = true;
+                } else if (term1.compareTo(term2) < 0) {
+                    readNextLine1 = true;
+                } else {
+                    readNextLine1 = false;
+                }
+            }
+
+            freader1.close();
+            freader2.close();
+            br1.close();
+            br2.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+        if (ret.size() > 0) {
+            return ret;
+        }
+
+        return null;
+    }
+
+
+    
 
 
     /**

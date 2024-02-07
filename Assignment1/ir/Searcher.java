@@ -158,7 +158,7 @@ public class Searcher {
             }
         }
 
-        if (ret.size() > 0){
+        if (ret.size() > 0) {
             return ret;
         }
         
