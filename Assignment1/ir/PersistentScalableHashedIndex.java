@@ -43,6 +43,8 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     private int merges_completed = 0;
 
     private boolean merge_in_progress = false;
+
+    private HashMap<Thread, String[]> created_threads = new HashMap<Thread, String[]>(); // Store which files each thread is working on
     
     /**
      *  Writes data to the data file at a specified place.
@@ -209,7 +211,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         System.err.println("Started merge: " + merge_data_location.charAt(merge_data_location.length()-1));
         String main_data_location = INDEXDIR + "/" + DATA_FNAME;
         String main_dict_location = INDEXDIR + "/" + DICTIONARY_FNAME; 
-        String main_tokens_location = INDEXDIR + "/" + TERMS_FNAME;
+        String main_terms_location = INDEXDIR + "/" + TERMS_FNAME;
 
         RandomAccessFile tempData = null;
         RandomAccessFile tempDict = null;
@@ -231,105 +233,113 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
         long free_ptr = 0;
 
-        ArrayList<String> merge_tokens = readTerms(merge_terms_location);
-        ArrayList<String> main_tokens = readTerms(main_tokens_location);
-        ArrayList<String> tokensToBeMerged = IntersectionOfTerms(merge_tokens.toArray(new String[merge_tokens.size()]), 
-                                                            main_tokens.toArray(new String[main_tokens.size()]));
-        merge_tokens.removeAll(tokensToBeMerged);
+        ArrayList<String> tokensToBeMerged = IntersectionOfTerms(main_terms_location, merge_terms_location);
 
         // Rewrite the datafile, rewrite entry if postingslist needs to be merged
         int[] hashes_used = new int[(int)TABLESIZE];
-        //try {
-        //    File file = new File(INDEXDIR + TERMS_FNAME);
-        //    FileReader freader = new FileReader(file);
-        //    BufferedReader br = new BufferedReader(freader);
-        //    String key;
-        //    while ((key = br.readLine()) != null) {
-        for (String key : main_tokens) {
-            String[] main_sdata = get_positings_data(main_dict, main_data, key);
-            String[] merge_sdata = null;
-            String write_data = String.join(DATA_SEPARATOR, main_sdata);
+        try {
+            File main_terms = new File(main_terms_location);
+            FileReader freader = new FileReader(main_terms);
+            BufferedReader br = new BufferedReader(freader);
+            String key;
+            while ((key = br.readLine()) != null) {
+                String[] main_sdata = get_positings_data(main_dict, main_data, key);
+                String[] merge_sdata = null;
+                String write_data = String.join(DATA_SEPARATOR, main_sdata);
 
-            if (tokensToBeMerged.contains(key)) {
-                // merge 
-                merge_sdata = get_positings_data(merge_dict, merge_data, key);
-                merge_sdata[0] = "";
-                write_data += String.join(DATA_SEPARATOR, merge_sdata); // replace the starting item "key" with separator
-            }
-            
-            // Write the data to the datafile
-            int written_data = writeData(tempData, write_data, free_ptr);
-            // Save the starting pointer and ending pointer
-            Entry e = new Entry(free_ptr, free_ptr+written_data); // this is the postings list for token "key" 
-            // Increment the starting pointer
-            free_ptr += written_data; // +1 ?
-            // Get hash of token
-            int hash = hash_function(key);
-            // Get the pointer corresponding to the location in the dictionary
-            long ptr = get_pointer_from_hash(hash);
-            
-            if (hashes_used[hash] == 0) {
-                writeEntry(tempDict, e, ptr);
-                hashes_used[hash] = 1;
-            } else {
-                // Get a new pointer to store the current postings list
-                int new_hash = find_first_collision_free(hashes_used);
-                long new_ptr = get_pointer_from_hash(new_hash);
+                if (tokensToBeMerged.contains(key)) {
+                    // merge 
+                    merge_sdata = get_positings_data(merge_dict, merge_data, key);
+                    merge_sdata[0] = "";
+                    write_data += String.join(DATA_SEPARATOR, merge_sdata); // replace the starting item "key" with separator
+                }
                 
-                // Get the entry at the collision hash value
-                EndOfListResponse response = find_end_of_list(tempDict, ptr);
-                // Save the new pointer to the collision entry
-                Entry col_entry = response.entry;
-                col_entry.collision_ptr = new_ptr;
-                writeEntry(tempDict, col_entry, response.ptr);
+                // Write the data to the datafile
+                int written_data = writeData(tempData, write_data, free_ptr);
+                // Save the starting pointer and ending pointer
+                Entry e = new Entry(free_ptr, free_ptr+written_data); // this is the postings list for token "key" 
+                // Increment the starting pointer
+                free_ptr += written_data; // +1 ?
+                // Get hash of token
+                int hash = hash_function(key);
+                // Get the pointer corresponding to the location in the dictionary
+                long ptr = get_pointer_from_hash(hash);
                 
-                // Write the entry to its new position
-                writeEntry(tempDict, e, new_ptr);
-                hashes_used[new_hash] = 1;
+                if (hashes_used[hash] == 0) {
+                    writeEntry(tempDict, e, ptr);
+                    hashes_used[hash] = 1;
+                } else {
+                    // Get a new pointer to store the current postings list
+                    int new_hash = find_first_collision_free(hashes_used);
+                    long new_ptr = get_pointer_from_hash(new_hash);
+                    
+                    // Get the entry at the collision hash value
+                    EndOfListResponse response = find_end_of_list(tempDict, ptr);
+                    // Save the new pointer to the collision entry
+                    Entry col_entry = response.entry;
+                    col_entry.collision_ptr = new_ptr;
+                    writeEntry(tempDict, col_entry, response.ptr);
+                    
+                    // Write the entry to its new position
+                    writeEntry(tempDict, e, new_ptr);
+                    hashes_used[new_hash] = 1;
+                }
             }
+            freader.close();
+            br.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-
-        //} catch (Exception e) {
-        //    e.printStackTrace();
-        //}
         
-        for (String key : merge_tokens) {
-            String merge_sdata[] = get_positings_data(merge_dict, merge_data, key);
-            String write_data = String.join(DATA_SEPARATOR, merge_sdata);
-            // Write the data to the datafile
-            int written_data = writeData(tempData, write_data, free_ptr);
-            // Save the starting pointer and ending pointer
-            Entry e = new Entry(free_ptr, free_ptr+written_data); // this is the postings list for token "key" 
-            // Increment the starting pointer
-            free_ptr += written_data; // +1 ?
-            // Get hash of token
-            int hash = hash_function(key);
-            // Get the pointer corresponding to the location in the dictionary
-            long ptr = get_pointer_from_hash(hash);
-            
-            if (hashes_used[hash] == 0) {
-                writeEntry(tempDict, e, ptr);
-                hashes_used[hash] = 1;
-            } else {
-                // Get a new pointer to store the current postings list
-                int new_hash = find_first_collision_free(hashes_used);
-                long new_ptr = get_pointer_from_hash(new_hash);
+        try {
+            File merge_terms = new File(merge_terms_location);
+            FileReader freader = new FileReader(merge_terms);
+            BufferedReader br = new BufferedReader(freader);
+            String key;
+            while ((key = br.readLine()) != null) {
+                if (tokensToBeMerged.contains(key)) {
+                    continue;
+                }
+                String merge_sdata[] = get_positings_data(merge_dict, merge_data, key);
+                String write_data = String.join(DATA_SEPARATOR, merge_sdata);
+                // Write the data to the datafile
+                int written_data = writeData(tempData, write_data, free_ptr);
+                // Save the starting pointer and ending pointer
+                Entry e = new Entry(free_ptr, free_ptr+written_data); // this is the postings list for token "key" 
+                // Increment the starting pointer
+                free_ptr += written_data; // +1 ?
+                // Get hash of token
+                int hash = hash_function(key);
+                // Get the pointer corresponding to the location in the dictionary
+                long ptr = get_pointer_from_hash(hash);
                 
-                // Get the entry at the collision hash value
-                EndOfListResponse response = find_end_of_list(tempDict, ptr);
-                // Save the new pointer to the collision entry
-                Entry col_entry = response.entry;
-                col_entry.collision_ptr = new_ptr;
-                writeEntry(tempDict, col_entry, response.ptr);
-                
-                // Write the entry to its new position
-                writeEntry(tempDict, e, new_ptr);
-                hashes_used[new_hash] = 1;
+                if (hashes_used[hash] == 0) {
+                    writeEntry(tempDict, e, ptr);
+                    hashes_used[hash] = 1;
+                } else {
+                    // Get a new pointer to store the current postings list
+                    int new_hash = find_first_collision_free(hashes_used);
+                    long new_ptr = get_pointer_from_hash(new_hash);
+                    
+                    // Get the entry at the collision hash value
+                    EndOfListResponse response = find_end_of_list(tempDict, ptr);
+                    // Save the new pointer to the collision entry
+                    Entry col_entry = response.entry;
+                    col_entry.collision_ptr = new_ptr;
+                    writeEntry(tempDict, col_entry, response.ptr);
+                    
+                    // Write the entry to its new position
+                    writeEntry(tempDict, e, new_ptr);
+                    hashes_used[new_hash] = 1;
+                }
             }
+            freader.close();
+            br.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        main_tokens.addAll(merge_tokens);
-        writeTerms(main_tokens.toArray(new String[main_tokens.size()]), main_tokens_location);
+        mergeTerms(main_terms_location, merge_terms_location, INDEXDIR + "/tempterms");
         try {
             writeDocInfo();
         } catch (Exception e) {
@@ -345,31 +355,34 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
             File f1 = new File(main_data_location);
             File f2 = new File(main_dict_location);
-            File f3 = new File(merge_data_location);
-            File f4 = new File(merge_dict_location);
-            File f5 = new File(merge_terms_location);
+            File f3 = new File(main_terms_location);
+            File f4 = new File(merge_data_location);
+            File f5 = new File(merge_dict_location);
+            File f6 = new File(merge_terms_location);
 
             f1.delete();
             f2.delete();
             f3.delete();
             f4.delete();
             f5.delete();
+            f6.delete();
 
             tempData.close();
             tempData.close();
             
-            File f6 = new File(INDEXDIR + "/tempdata");
-            File f7 = new File(INDEXDIR + "/tempdict");
+            File f7 = new File(INDEXDIR + "/tempdata");
+            File f8 = new File(INDEXDIR + "/tempdict");
+            File f9 = new File(INDEXDIR + "/tempterms");
 
-            f6.renameTo(f1);
-            f7.renameTo(f2);
-
-            //System.err.println("Deleted and loaded: " + merge_data_location + " : " + merge_dict_location);
+            f7.renameTo(f1);
+            f8.renameTo(f2);
+            f9.renameTo(f3);
         } catch ( IOException e ) {
             e.printStackTrace();
         }
         
         merge_in_progress = false;
+        System.err.println("Finished merge: " + merge_data_location.charAt(merge_data_location.length()-1));
 
         /*
          * Read all the tokens
@@ -421,6 +434,51 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         }
 
         return ret_data;
+    }
+
+    private void mergeTerms(String main_terms, String merge_terms, String outputFile) {
+        try {
+            FileOutputStream fout = new FileOutputStream(outputFile);
+            File fmain = new File(main_terms);
+            File fmerge = new File(merge_terms);
+            FileReader frmain = new FileReader(fmain);
+            BufferedReader brmain = new BufferedReader(frmain);
+            FileReader frmerge = new FileReader(fmerge);
+            BufferedReader brmerge = new BufferedReader(frmerge);
+            String line1 = brmain.readLine();
+            String line2 = brmerge.readLine();
+            while (line1 != null && line2 != null) {
+                if (line1.equals(line2)) {
+                    fout.write((line1+"\n").getBytes());
+                    line1 = brmain.readLine();
+                    line2 = brmerge.readLine();
+                } else if (line1.compareTo(line2) < 0) {
+                    fout.write((line1+"\n").getBytes());
+                    line1 = brmain.readLine();
+                } else {
+                    fout.write((line2+"\n").getBytes());
+                    line2 = brmerge.readLine();
+                }
+            }
+
+            while (line1 != null) {
+                fout.write((line1+"\n").getBytes());
+                line1 = brmain.readLine();
+            }
+            
+            while (line2 != null) {
+                fout.write((line2+"\n").getBytes());
+                line2 = brmerge.readLine();
+            }
+
+            fout.close();
+            frmain.close();
+            brmain.close();
+            frmerge.close();
+            brmerge.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public class Merger implements Runnable {

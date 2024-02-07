@@ -280,7 +280,7 @@ public class PersistentHashedIndex implements Index {
         return ret;
     }
 
-    protected ArrayList<String> IntersectionOfTerms(String[] terms1, String[] terms2) {
+    /*protected ArrayList<String> IntersectionOfTerms(String[] terms1, String[] terms2) {
         Arrays.sort(terms1);
         Arrays.sort(terms2);
         int i = 0, j = 0;
@@ -304,11 +304,10 @@ public class PersistentHashedIndex implements Index {
         }
 
         return null;
-    }
+    }*/
 
     protected ArrayList<String> IntersectionOfTerms(String file1, String file2) {
         ArrayList<String> ret = new ArrayList<String>();
-
         try {
             File f1 = new File(file1);
             FileReader freader1 = new FileReader(f1);
@@ -343,7 +342,7 @@ public class PersistentHashedIndex implements Index {
                 } else if (term1.compareTo(term2) < 0) {
                     readNextLine1 = true;
                 } else {
-                    readNextLine1 = false;
+                    readNextLine2 = true;
                 }
             }
 
