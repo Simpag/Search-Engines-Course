@@ -386,7 +386,7 @@ public class PersistentHashedIndex implements Index {
                 // Save the starting pointer and ending pointer
                 Entry e = new Entry(free, free+written_data); // this is the postings list for token "key" 
                 // Increment the starting pointer
-                free += written_data; // +1 ?
+                free += written_data+1; // +1 ?
                 // Get hash of token
                 int hash = hash_function(key);
                 // Get the pointer corresponding to the location in the dictionary
