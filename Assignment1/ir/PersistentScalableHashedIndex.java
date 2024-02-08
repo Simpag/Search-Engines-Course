@@ -16,6 +16,7 @@ import java.nio.charset.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.concurrent.ThreadLocalRandom;
 
 
@@ -33,7 +34,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
-    public static final int BATCHSIZE = 5_000_000; //50_000;//10_000_000;
+    public static final int BATCHSIZE = 10_000_000; //3_000_000;//10_000_000;
 
     private ArrayList<Thread> created_threads = new ArrayList<Thread>(); // Store which files each thread is working on
 
@@ -282,7 +283,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             e.printStackTrace();
         }
 
-        System.err.println( "Last done!" );
+        System.err.println( "Last done! " + LocalDateTime.now());
     }
 
     private void merge_files(String main_data_location, String main_dict_location, String main_terms_location, String main_docinfo,
