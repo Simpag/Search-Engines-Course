@@ -10,8 +10,12 @@ package ir;
 import java.io.*;
 import java.util.*;
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.ThreadLocalRandom;
 
 
@@ -29,7 +33,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
-    public static final int BATCHSIZE = 8_000_000; //50_000;//10_000_000;
+    public static final int BATCHSIZE = 5_000_000; //50_000;//10_000_000;
 
     private ArrayList<Thread> created_threads = new ArrayList<Thread>(); // Store which files each thread is working on
 
@@ -153,8 +157,10 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         }
 
         try {
-            dataFile.getChannel().force(false);;
-            dictionaryFile.getChannel().force(false);
+            dataFile.getChannel().force(true);
+            dictionaryFile.getChannel().force(true);
+            readDictionaryFile.getChannel().force(true);
+            readDictionaryFile.close();
             dictionaryFile.close();
             dataFile.close();
         } catch (Exception e) {
@@ -178,6 +184,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             System.err.println("New file: " + new_data_location);
             try {
                 dictionaryFile = new RandomAccessFile(new_dict_location, "rw" );
+                readDictionaryFile = new RandomAccessFile(new_dict_location, "r");
                 dataFile = new RandomAccessFile(new_data_location, "rw" );
             } catch ( IOException e ) {
                 e.printStackTrace();
@@ -218,10 +225,6 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         System.err.println("Finished indexing." );
         System.err.print( "Waiting for merges to complete.. ");
 
-        //if (created_indicies.size() <= 0) {
-        //    waitForThreads(); //????
-        //    return;
-        //}
         write_intermediate(false);
 
         try {
@@ -259,7 +262,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
+        
         try {
             File f1 = new File(INDEXDIR + "/" + DATA_FNAME + created_indicies.get(0));
             File f2 = new File(INDEXDIR + "/" + DICTIONARY_FNAME + created_indicies.get(0));
@@ -273,6 +276,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             
             dataFile = new RandomAccessFile(INDEXDIR + "/" + DATA_FNAME, "rw");
             dictionaryFile = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME, "rw");
+            readDictionaryFile = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME, "r");
             readDocInfo();
         } catch ( IOException e ) {
             e.printStackTrace();
@@ -286,9 +290,11 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                              String new_append) {
         
         System.err.println("Started merge: " + new_append);
+        long start_time = System.currentTimeMillis();
 
         RandomAccessFile tempData = null;
         RandomAccessFile tempDict = null;
+        RandomAccessFile tempReadDict = null;
         RandomAccessFile main_data = null;
         RandomAccessFile main_dict = null;
         RandomAccessFile merge_data = null;
@@ -297,6 +303,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         try {
             tempData = new RandomAccessFile(INDEXDIR + "/" + DATA_FNAME + new_append, "rw" );
             tempDict = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME + new_append, "rw" );
+            tempReadDict = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME + new_append, "r" );
             main_data = new RandomAccessFile(main_data_location, "rw" );
             main_dict = new RandomAccessFile(main_dict_location, "rw" );
             merge_data = new RandomAccessFile(merge_data_location, "rw" );
@@ -308,14 +315,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         long free_ptr = 0;
 
         ArrayList<String> tokensToBeMerged = IntersectionOfTerms(main_terms_location, merge_terms_location);
-        /*ArrayList<String> test1 = readTerms(main_terms_location);
-        ArrayList<String> test2 = readTerms(merge_terms_location);
-        Set<String> test3 = new HashSet<String>(test1);
-        test3.retainAll(test2);
-        System.err.println(test3.size() + " : " + tokensToBeMerged.size() + " : " + test1.size() + " : " + test2.size());
-        tokensToBeMerged = new ArrayList<String>(test3);*/
         
-
         // Rewrite the datafile, rewrite entry if postingslist needs to be merged
         int[] hashes_used = new int[(int)TABLESIZE];
         try {
@@ -324,9 +324,11 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             BufferedReader br = new BufferedReader(freader);
             String token, write_data = "";
             ArrayList<writeBuffer> dictBuffer = new ArrayList<writeBuffer>();
+            String[] main_sdata;
+            String[] merge_sdata;
             while ((token = br.readLine()) != null) {
-                String[] main_sdata = get_positings_data(main_data, main_dict, token);
-                String[] merge_sdata = null;
+                main_sdata = get_positings_data(main_data, main_dict, token);
+                merge_sdata = null;
 
                 if (tokensToBeMerged.contains(token)) {
                     // merge 
@@ -359,7 +361,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                     long new_ptr = get_pointer_from_hash(new_hash);
                     
                     // Get the entry at the collision hash value
-                    EndOfListResponse response = find_end_of_list(tempDict, ptr);
+                    EndOfListResponse response = find_end_of_list(tempReadDict, ptr);
                     // Save the new pointer to the collision entry
                     Entry col_entry = response.entry;
                     col_entry.collision_ptr = new_ptr;
@@ -414,7 +416,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                     long new_ptr = get_pointer_from_hash(new_hash);
                     
                     // Get the entry at the collision hash value
-                    EndOfListResponse response = find_end_of_list(tempDict, ptr);
+                    EndOfListResponse response = find_end_of_list(tempReadDict, ptr);
                     // Save the new pointer to the collision entry
                     Entry col_entry = response.entry;
                     col_entry.collision_ptr = new_ptr;
@@ -439,6 +441,13 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
         // Delete files and rename temp
         try {
+            tempData.getChannel().force(true);
+            tempDict.getChannel().force(true);
+            tempReadDict.getChannel().force(true);
+
+            tempData.close();
+            tempDict.close();
+            tempReadDict.close();
             main_data.close();
             main_dict.close();
             merge_data.close();
@@ -450,6 +459,8 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             File f4 = new File(merge_data_location);
             File f5 = new File(merge_dict_location);
             File f6 = new File(merge_terms_location);
+            File f7 = new File(main_docinfo);
+            File f8 = new File(merge_docinfo);
 
             f1.delete();
             f2.delete();
@@ -457,29 +468,22 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             f4.delete();
             f5.delete();
             f6.delete();
-
-            tempData.close();
-            tempDict.close();
-
-            File f7 = new File(main_docinfo);
-            File f8 = new File(merge_docinfo);
-
             f7.delete();
             f8.delete();
 
-            /*File f7 = new File(INDEXDIR + "/" + "merge_data" + new_append);
-            File f8 = new File(INDEXDIR + "/" + "merge_dict" + new_append);
-            File f9 = new File(INDEXDIR + "/" + TERMS_FNAME + "_merge" + new_append);
+            /*Path f9 = Paths.get(INDEXDIR + "/" + DATA_FNAME + new_append + "_merge");
+            Path f10 = Paths.get(INDEXDIR + "/" + DICTIONARY_FNAME + new_append + "_merge");
+            Path f11 = Paths.get(INDEXDIR + "/" + DATA_FNAME + new_append);
+            Path f12 = Paths.get(INDEXDIR + "/" + DICTIONARY_FNAME + new_append);
 
-            f7.renameTo(f1);
-            f8.renameTo(f2);
-            f9.renameTo(f3);*/
-        } catch ( IOException e ) {
+            Files.move(f9, f11);
+            Files.move(f10, f12);*/
+        } catch ( Exception e ) {
             e.printStackTrace();
         }
         
         created_indicies.add(new_append);
-        System.err.println("Finished merge: " + new_append);
+        System.err.println("Finished merge: " + new_append + ", took: " + (System.currentTimeMillis() - start_time)/1000L + " seconds");
 
         /*
          * Read all the tokens

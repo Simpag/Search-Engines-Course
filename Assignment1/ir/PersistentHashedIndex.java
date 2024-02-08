@@ -9,10 +9,12 @@ package ir;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.*;
 import java.security.spec.ECFieldF2m;
+import java.time.LocalDateTime; 
 
 
 /*
@@ -44,10 +46,11 @@ public class PersistentHashedIndex implements Index {
     public static final String DOCINFO_FNAME = "docInfo";
 
     /** The dictionary hash table on disk can fit this many entries. */
-    public static final long TABLESIZE = 3_000_017L; //3_503_119L //611953L
+    public static final long TABLESIZE = 611953L; //3_503_119L //611953L
 
     /** The dictionary hash table is stored in this file. */
     RandomAccessFile dictionaryFile;
+    RandomAccessFile readDictionaryFile;
 
     /** The data (the PostingsLists) are stored in this file. */
     RandomAccessFile dataFile;
@@ -108,6 +111,7 @@ public class PersistentHashedIndex implements Index {
     public PersistentHashedIndex() {
         try {
             dictionaryFile = new RandomAccessFile( INDEXDIR + "/" + DICTIONARY_FNAME, "rw" );
+            readDictionaryFile = new RandomAccessFile( INDEXDIR + "/" + DICTIONARY_FNAME, "r");
             dataFile = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME, "rw" );
         } catch ( IOException e ) {
             e.printStackTrace();
@@ -119,6 +123,8 @@ public class PersistentHashedIndex implements Index {
         } catch ( IOException e ) {
             e.printStackTrace();
         }
+        
+        System.err.println(LocalDateTime.now());
 
     }
 
@@ -181,11 +187,7 @@ public class PersistentHashedIndex implements Index {
         //  YOUR CODE HERE
         //
         byte[] data = entry.get_bytes();
-        if (writeDictBuffer.size() < 1000) {
-            writeDictBuffer.add(new writeBuffer(data, ptr));
-        } else {
-            emptyDictBuffer();
-        }
+        writeDictBuffer.add(new writeBuffer(data, ptr));
     }
 
     private void emptyDictBuffer() {
@@ -211,9 +213,9 @@ public class PersistentHashedIndex implements Index {
         //  REPLACE THE STATEMENT BELOW WITH YOUR CODE 
         //
         try {
-            dictionaryFile.seek( ptr );
+            readDictionaryFile.seek( ptr );
             byte[] data = new byte[Entry.byte_size];
-            dictionaryFile.readFully( data );
+            readDictionaryFile.readFully( data );
             return new Entry(data);
         } catch ( IOException e ) {
             e.printStackTrace();
@@ -479,6 +481,16 @@ public class PersistentHashedIndex implements Index {
     }
 
     protected int find_first_collision_free(int[] arr) {
+        int cnt = 0;
+
+        while (cnt < 20) {
+            int randomNum = ThreadLocalRandom.current().nextInt(0, (int)TABLESIZE);
+            if (arr[randomNum] == 0) {
+                return randomNum;
+            }
+            cnt++; 
+        }
+
         for (int i = 0; i < arr.length; i++) {
             if (arr[i] == 0){
                 return i;
@@ -550,11 +562,22 @@ public class PersistentHashedIndex implements Index {
         System.err.println( index.keySet().size() + " unique words" );
         System.err.print( "Writing index to disk..." );
         writeIndex(true);
+        try {
+            dataFile.getChannel().force(false);;
+            dictionaryFile.getChannel().force(false);
+            readDictionaryFile.getChannel().force(false);
+            readDictionaryFile.close();
+            dictionaryFile.close();
+            dataFile.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         System.err.println( "done!" );
     }
 
     protected int hash_function(String in) {
-        int[] primes = {11,13,17,19}; // {11,13,17,19,23,39,31,37,41,43};
+        //return (int)Math.abs(Math.floor(in.hashCode()%TABLESIZE));
+        /*int[] primes = {2719,21269,571699,1000423}; // {11,13,17,19,23,39,31,37,41,43};
         int num_primes = primes.length;
         double hash = 3;
         
@@ -563,11 +586,22 @@ public class PersistentHashedIndex implements Index {
             hash *= (b[i]+0.5) * primes[i%num_primes];
         }
 
-        return (int)Math.floor(Math.abs(hash%TABLESIZE));
-        //return (int)Math.abs(Math.floor(in.hashCode()%TABLESIZE));
+        return (int)Math.floor(Math.abs(hash%TABLESIZE));*/
+
+        long hash = 0;
+        for (int i = 0; i < in.length(); i++) {
+            hash = 37*hash + in.charAt(i);
+        }
+
+        return (int)Math.abs(hash%TABLESIZE);
     }
 
     protected long get_pointer_from_hash(int hash) {
         return (Entry.byte_size+1) * hash; // adding one because I've never used java and dont know if some functions are inclusive and I dont feel like finding out
     }
 }
+
+/*
+ * Try to make another file for reading dict, dont need to move pointer so much
+ * 
+ */
