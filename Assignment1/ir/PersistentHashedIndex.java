@@ -497,13 +497,30 @@ public class PersistentHashedIndex implements Index {
                 return i;
             }
         }*/
-        int cnt = -1;
+        
+        // First improvement, checks only ahead
+        /*int cnt = -1;
         while (cnt < TABLESIZE) {
             if (arr[hash] == 0) {
                 return hash;
             } 
             hash = (int)((hash+1)%TABLESIZE);
             cnt++;
+        }*/
+
+        // Second checks closest distance
+        int behind = hash-1, ahead = hash+1;
+        while (behind > -1 || ahead < TABLESIZE) {
+            if (ahead < TABLESIZE && arr[ahead] == 0) {
+                return ahead;
+            }
+
+            if (behind > -1 && arr[behind] == 0) {
+                return behind;
+            }
+
+            behind--;
+            ahead++;
         }
         
         System.err.println("Something went wrong, did not find any collision free indicies!");
