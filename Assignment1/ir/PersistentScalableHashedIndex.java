@@ -35,7 +35,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
-    public static final int BATCHSIZE = 1_000_000; //3_000_000;//10_000_000;
+    public static final int BATCHSIZE = 10_000_000; //3_000_000;//10_000_000;
 
     private ArrayList<Thread> created_threads = new ArrayList<Thread>(); // Store which files each thread is working on
 
@@ -316,7 +316,8 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
         long free_ptr = 0;
 
-        ArrayList<String> tokensToBeMerged = IntersectionOfTerms(main_terms_location, merge_terms_location);
+        //String[] tokensToBeMerged = IntersectionOfTerms(main_terms_location, merge_terms_location);        
+        HashMap<String, Integer> tokensToBeMerged = IntersectionOfTerms(main_terms_location, merge_terms_location);       
         
         // Rewrite the datafile, rewrite entry if postingslist needs to be merged
         int[] hashes_used = new int[(int)TABLESIZE];
@@ -332,7 +333,9 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                 main_sdata = get_positings_data(main_data, main_dict, token);
                 merge_sdata = null;
 
-                if (tokensToBeMerged.contains(token)) {
+                //if (Arrays.binarySearch(tokensToBeMerged, token) > 0) {
+                //if (tokensToBeMerged.contains(token)) {
+                if (tokensToBeMerged.containsKey(token)) {
                     // merge 
                     merge_sdata = get_positings_data(merge_data, merge_dict, token);
                     write_data = mergeData(main_sdata, merge_sdata);
@@ -390,7 +393,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             String token;
             ArrayList<writeBuffer> dictBuffer = new ArrayList<writeBuffer>();
             while ((token = br.readLine()) != null) {
-                if (tokensToBeMerged.contains(token)) {
+                if (tokensToBeMerged.containsKey(token)) {
                     continue;
                 }
                 String merge_sdata[] = get_positings_data(merge_data, merge_dict, token);

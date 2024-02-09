@@ -46,7 +46,7 @@ public class PersistentHashedIndex implements Index {
     public static final String DOCINFO_FNAME = "docInfo";
 
     /** The dictionary hash table on disk can fit this many entries. */
-    public static final long TABLESIZE = 611_953L; //3_503_119L //611_953L
+    public static final long TABLESIZE = 3_503_119L; //3_503_119L //611_953L
 
     /** The dictionary hash table is stored in this file. */
     RandomAccessFile dictionaryFile;
@@ -339,7 +339,7 @@ public class PersistentHashedIndex implements Index {
         return null;
     }*/
 
-    protected ArrayList<String> IntersectionOfTerms(String file1, String file2) {
+    /*protected String[] IntersectionOfTerms(String file1, String file2) {
         ArrayList<String> ret = new ArrayList<String>();
         try {
             File f1 = new File(file1);
@@ -387,6 +387,63 @@ public class PersistentHashedIndex implements Index {
             e.printStackTrace();
             return null;
         }
+
+        if (ret.size() > 0) {
+            return ret.toArray(new String[ret.size()]);
+        }
+
+        return null;
+    }*/
+
+    protected HashMap<String, Integer> IntersectionOfTerms(String file1, String file2) {
+        HashMap<String, Integer> ret = new HashMap<String, Integer>();
+        try {
+            File f1 = new File(file1);
+            FileReader freader1 = new FileReader(f1);
+            BufferedReader br1 = new BufferedReader(freader1);
+
+            File f2 = new File(file2);
+            FileReader freader2 = new FileReader(f2);
+            BufferedReader br2 = new BufferedReader(freader2);
+
+            String term1 = "", term2 = "";
+            boolean readNextLine1 = true, readNextLine2 = true;
+            while (true) {
+                if (readNextLine1) {
+                    term1 = br1.readLine();
+                    readNextLine1 = false;
+                    if (term1 == null) {
+                        break;
+                    }
+                }
+                if (readNextLine2) {
+                    term2 = br2.readLine();
+                    readNextLine2 = false;
+                    if (term2 == null) {
+                        break;
+                    }
+                }
+
+                if (term1.equals(term2)) {
+                    ret.put(term1, 1);
+                    readNextLine1 = true;
+                    readNextLine2 = true;
+                } else if (term1.compareTo(term2) < 0) {
+                    readNextLine1 = true;
+                } else {
+                    readNextLine2 = true;
+                }
+            }
+
+            freader1.close();
+            freader2.close();
+            br1.close();
+            br2.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+
         if (ret.size() > 0) {
             return ret;
         }
