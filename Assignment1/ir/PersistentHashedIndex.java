@@ -62,6 +62,8 @@ public class PersistentHashedIndex implements Index {
     HashMap<String,PostingsList> index = new HashMap<String,PostingsList>();
 
     protected static final String DATA_SEPARATOR = " ";
+	
+	public LocalDateTime startTime;
 
 
     // ===================================================================
@@ -124,8 +126,7 @@ public class PersistentHashedIndex implements Index {
             e.printStackTrace();
         }
         
-        System.err.println(LocalDateTime.now());
-
+        startTime = LocalDateTime.now();
     }
 
     /**

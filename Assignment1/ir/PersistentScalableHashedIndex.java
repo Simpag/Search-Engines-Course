@@ -16,6 +16,7 @@ import java.nio.charset.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -283,7 +284,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             e.printStackTrace();
         }
 
-        System.err.println( "Last done! " + LocalDateTime.now());
+        System.err.println( "Completed in: " + Duration.between(startTime, LocalDateTime.now()).toMillis() / 1000 + " seconds");
     }
 
     private void merge_files(String main_data_location, String main_dict_location, String main_terms_location, String main_docinfo,
