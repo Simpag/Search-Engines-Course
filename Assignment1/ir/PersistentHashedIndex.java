@@ -46,7 +46,7 @@ public class PersistentHashedIndex implements Index {
     public static final String DOCINFO_FNAME = "docInfo";
 
     /** The dictionary hash table on disk can fit this many entries. */
-    public static final long TABLESIZE = 3_503_119L; //3_503_119L //611953L
+    public static final long TABLESIZE = 611_953L; //3_503_119L //611_953L
 
     /** The dictionary hash table is stored in this file. */
     RandomAccessFile dictionaryFile;
@@ -433,7 +433,7 @@ public class PersistentHashedIndex implements Index {
                     // Collision occured
                     collisions += 1;
                     // Get a new pointer to store the current postings list
-                    int new_hash = find_first_collision_free(hashes_used);
+                    int new_hash = find_first_collision_free(hashes_used, hash);
                     long new_ptr = get_pointer_from_hash(new_hash);
                     
                     // Get the entry at the collision hash value
@@ -480,8 +480,8 @@ public class PersistentHashedIndex implements Index {
         return new EndOfListResponse(e, ptr);
     }
 
-    protected int find_first_collision_free(int[] arr) {
-        int cnt = 0;
+    protected int find_first_collision_free(int[] arr, int hash) {
+        /*int cnt = 0;
 
         while (cnt < 20) {
             int randomNum = ThreadLocalRandom.current().nextInt(0, (int)TABLESIZE);
@@ -489,12 +489,20 @@ public class PersistentHashedIndex implements Index {
                 return randomNum;
             }
             cnt++; 
-        }
-
-        for (int i = 0; i < arr.length; i++) {
+        }*/
+        
+        /*for (int i = 0; i < arr.length; i++) {
             if (arr[i] == 0){
                 return i;
             }
+        }*/
+        int cnt = -1;
+        while (cnt < TABLESIZE) {
+            if (arr[hash] == 0) {
+                return hash;
+            } 
+            hash = (int)((hash+1)%TABLESIZE);
+            cnt++;
         }
         
         System.err.println("Something went wrong, did not find any collision free indicies!");

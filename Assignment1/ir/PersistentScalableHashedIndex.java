@@ -34,7 +34,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
-    public static final int BATCHSIZE = 10_000_000; //3_000_000;//10_000_000;
+    public static final int BATCHSIZE = 1_000_000; //3_000_000;//10_000_000;
 
     private ArrayList<Thread> created_threads = new ArrayList<Thread>(); // Store which files each thread is working on
 
@@ -302,9 +302,9 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         RandomAccessFile merge_dict = null;
 
         try {
-            tempData = new RandomAccessFile(INDEXDIR + "/" + DATA_FNAME + new_append, "rw" );
-            tempDict = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME + new_append, "rw" );
-            tempReadDict = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME + new_append, "r" );
+            tempData = new RandomAccessFile(INDEXDIR + "/" + DATA_FNAME + new_append + "_merge", "rw" );
+            tempDict = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME + new_append + "_merge", "rw" );
+            tempReadDict = new RandomAccessFile(INDEXDIR + "/" + DICTIONARY_FNAME + new_append + "_merge", "r" );
             main_data = new RandomAccessFile(main_data_location, "rw" );
             main_dict = new RandomAccessFile(main_dict_location, "rw" );
             merge_data = new RandomAccessFile(merge_data_location, "rw" );
@@ -358,7 +358,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                     emptyDictBuffer(dictBuffer, tempDict);
                     dictBuffer.clear();
                     // Get a new pointer to store the current postings list
-                    int new_hash = find_first_collision_free(hashes_used);
+                    int new_hash = find_first_collision_free(hashes_used, hash);
                     long new_ptr = get_pointer_from_hash(new_hash);
                     
                     // Get the entry at the collision hash value
@@ -413,7 +413,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
                     emptyDictBuffer(dictBuffer, tempDict);
                     dictBuffer.clear();
                     // Get a new pointer to store the current postings list
-                    int new_hash = find_first_collision_free(hashes_used);
+                    int new_hash = find_first_collision_free(hashes_used, hash);
                     long new_ptr = get_pointer_from_hash(new_hash);
                     
                     // Get the entry at the collision hash value
@@ -472,13 +472,13 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             f7.delete();
             f8.delete();
 
-            /*Path f9 = Paths.get(INDEXDIR + "/" + DATA_FNAME + new_append + "_merge");
+            Path f9 = Paths.get(INDEXDIR + "/" + DATA_FNAME + new_append + "_merge");
             Path f10 = Paths.get(INDEXDIR + "/" + DICTIONARY_FNAME + new_append + "_merge");
             Path f11 = Paths.get(INDEXDIR + "/" + DATA_FNAME + new_append);
             Path f12 = Paths.get(INDEXDIR + "/" + DICTIONARY_FNAME + new_append);
 
             Files.move(f9, f11);
-            Files.move(f10, f12);*/
+            Files.move(f10, f12);
         } catch ( Exception e ) {
             e.printStackTrace();
         }
