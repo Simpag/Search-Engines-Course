@@ -1,0 +1,59 @@
+//
+//  Information retrieval course
+//  First version: Johan Boye 2016
+//
+// In this file you can put your regular expressions
+// for matching non-standard words (like mail addresses).
+//
+// As you have probably already understood, lines beginning
+// with "//" are comments.
+//
+// The regular expression below is an example of a useful
+// pattern. You can keep it, modify it, or remove it, as you
+// wish.
+
+// URL
+\w{0,5}(://)([\w-%]+\.)+[\w]{2,4}(/[\w-;?!:@&=+$,?\.#\"<>%]*)*
+
+// Absolute URL
+\w{0,5}(://)[\w-%]+(:\d+)?(/[\w-;?!:@&=+$,?\.#\"<>%]*)*
+
+// Email (match one or more characters (including - and .) followed by "@" and then the domain)
+[\w-\.]+@([\w-]+\.)+[\w]{2,4}
+
+// IP
+//(\d{3}\.){3}\d{3}
+(\d+\.)+\d+
+
+// "-"
+(\w+-)+\w+
+
+// "'" (can be 'x and x'x but not 'x') [negative look-ahead]
+(\w*'\w+)(?!\w*')
+
+// "." (usually a file, \w includes "_")
+(\w+\.)+[a-zA-Z]{1,4}\.?
+
+// ":"
+(\d+:)+\d+
+
+// "$"
+\$\d+
+
+// "+"
+\+\d+
+
+// ","
+(\d+\,)+\d+
+
+// Twenty-four seven
+\d+/\d+
+
+
+// ADD YOUR PATTERNS HERE
+
+// The patterns will be tried from top to bottom, so it is a
+// good idea to put more specific patterns above more general
+// patterns.
+
+
