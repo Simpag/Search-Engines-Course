@@ -67,11 +67,11 @@ public class Searcher {
         {
             String token = query.queryterm.get(i).term;
             PostingsList p = index.getPostings(token);
-            terms.add(p);
-        }
-        
-        for (PostingsList p : terms) {
-            caluclate_scores(p);
+
+            if (p != null){
+                caluclate_scores(p);
+                terms.add(p);
+            }
         }
 
         // merge
@@ -96,10 +96,6 @@ public class Searcher {
     }
 
     private void caluclate_scores(PostingsList p) {
-        // Calculate w_t,q
-        // For each pair(d, tf_t,d) in postings list
-        // add wf_t,d to score of d
-
         double df_t = p.size();
         double idf_t = Math.log(index.corpusSize()/df_t);
 
