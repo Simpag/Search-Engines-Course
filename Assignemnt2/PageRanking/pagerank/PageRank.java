@@ -146,52 +146,90 @@ public class PageRank {
      */
     void iterate( int numberOfDocs, int maxIterations ) {
 		// Init G Matrix
-		double J = BORED * 1/numberOfDocs; // c = 1 - BORED
-		HashMap<Integer,HashMap<Integer,Double>> G = createProbMatrix();
-		matrixElementWiseMulti(G, 1-BORED);
+		double J = BORED/numberOfDocs; // c = 1 - BORED
+		HashMap<Integer,HashMap<Integer,Double>> G = createProbMatrix(numberOfDocs);
+		matrixElementWiseMulti(G, 1.0-BORED);
 		matrixElementWiseAdd(G, J);
 
 		// Init state
 		double[] x = new double[numberOfDocs];
-		int randomState = -1;
-		while (true) {
-			randomState = ThreadLocalRandom.current().nextInt(0, numberOfDocs+1);
-			if (link.containsKey(randomState))
-				break;
-		}
-
-		System.err.println("Random state: " + randomState);
-
-		x[randomState] = 1;
 		double[] x_prev = new double[numberOfDocs];
+		int randomState = ThreadLocalRandom.current().nextInt(0, numberOfDocs+1);
+		//randomState = 10; / debugging
+		x[randomState] = 1.0;
+			
+		System.err.println("Random state: " + randomState);
+	
 		int iteration = 0;
-
-
 		while (vectorDiffNorm1(x, x_prev) > EPSILON && iteration < maxIterations) {
 			x_prev = x;
-			x = matrixMultiply(G,x_prev);
+			x = matrixMultiply(G, x_prev);
+			// double n = vectorNorm1(x);
+			// for (int i = 0; i < x.length; i++)
+			// 	x[i] /= n; 
 
 			iteration++;
+
+			System.err.println("Iteration: " + iteration + ", Norm: " + vectorNorm1(x));
 		}
 
 		printTop30(x);
+
+		System.err.println(vectorNorm1(x));
     }
 
-	private HashMap<Integer,HashMap<Integer,Double>> createProbMatrix() {
+	private HashMap<Integer,HashMap<Integer,Double>> createProbMatrix(int numberOfDocs) {
 		HashMap<Integer,HashMap<Integer,Double>> prob = new HashMap<Integer,HashMap<Integer,Double>>();
+
+		// for (int row = 0; row < numberOfDocs; row++) {
+		// 	prob.put(row, new HashMap<Integer,Double>());
+
+		// 	double rowSum = 0;
+
+		// 	if (out[row] > 0) {
+		// 		for (int col : link.get(row).keySet()) {
+		// 			prob.get(row).put(col, (double)1/out[row]);
+		// 			rowSum += (double)1/out[row];
+		// 		}
+		// 	} else {
+		// 		// add 1/ numdocs
+		// 	}
+
+		// 	for (int col = 0; col < numberOfDocs; col++) {
+				
+
+		// 		if (link.get(row) == null) {
+		// 			prob.get(row).put(col, (double)1/numberOfDocs);
+		// 			rowSum += (double)1/numberOfDocs;
+		// 			continue;
+		// 		}
+
+		// 		if (link.get(row).get(col) == null) {
+		// 			prob.get(row).put(col, 0.0);
+		// 			continue;
+		// 		}
+
+		// 		if (prob.get(row).get(col) == null) {
+		// 			prob.get(row).put(col, (double)1/out[row]);
+		// 			rowSum += (double)1/out[row];
+		// 		}
+		// 	}
+
+		// 	if (!(Math.abs(1-rowSum) < 0.000001)) {
+		// 		System.err.println("Row did not sum to 1: " + rowSum);
+		// 	}
+		// }
 		
 		for (int row : link.keySet()) {
 			prob.put(row, new HashMap<Integer,Double>());
 
 			double rowSum = 0;
 			for (int col : link.get(row).keySet()) {
-				if (prob.get(row).get(col) == null) {
-					prob.get(row).put(col, (double)1/out[row]);
-					rowSum += (double)1/out[row];
-				}
+				prob.get(row).put(col, (double)1.0/out[row]);
+				rowSum += (double)1.0/out[row];
 			}
 
-			if (!(Math.abs(1-rowSum) < 0.000001)) {
+			if (!(Math.abs(1.0-rowSum) < 0.000001)) {
 				System.err.println("Row did not sum to 1: " + rowSum);
 			}
 		}
@@ -203,7 +241,7 @@ public class PageRank {
 		double ret = 0;
 
 		for (int i = 0; i < x.length; i++) {
-			ret += x[i];
+			ret += Math.abs(x[i]);
 		}
 
 		return ret;
@@ -239,10 +277,30 @@ public class PageRank {
 		/// Takes a row vector and multiplies it with a matrix (x*A=x')
 		double[] x_prime = new double[x.length];
 
-		for (int row : prob.keySet()) {
-			for (int col : prob.get(row).keySet()) { 
-				if (prob.get(row).get(col) != null) {
-					x_prime[col] += prob.get(row).get(col) * x[row];
+		// for (int row = 0; row < x.length; row++) {
+		// 	if (prob.containsKey(row)) {
+		// 		for (int col = 0; col < x.length; col++) {
+		// 			if (prob.get(row).containsKey(col))
+		// 				x_prime[col] += prob.get(row).get(col) * x[row];
+		// 			else
+		// 				x_prime[col] += BORED/x.length * x[row];
+		// 		}
+		// 	} else {
+		// 		for (int col = 0; col < x.length; col++) {
+		// 			x_prime[col] += 1.0/x.length * x[row];
+		// 		}
+		// 	}
+		// }
+
+		for (int row = 0; row < x.length; row++) {
+			for (int col = 0; col < x.length; col++) {
+				if (prob.containsKey(row)) {
+					if (prob.get(row).containsKey(col))
+						x_prime[col] += prob.get(row).get(col) * x[row];
+					else
+						x_prime[col] += BORED/x.length * x[row];
+				} else {
+					x_prime[col] += 1.0/x.length * x[row];
 				}
 			}
 		}
@@ -262,3 +320,86 @@ public class PageRank {
 		}
     }
 }
+
+// Test examples
+// double[] x = {1,0,0,0,0};
+// double[] x_prev = new double[5];
+
+// HashMap<Integer,HashMap<Integer,Double>> A = new HashMap<Integer,HashMap<Integer,Double>>();
+// A.put(0, new HashMap<Integer,Double>());
+// A.get(0).put(1,1.0/3.0);
+// A.get(0).put(2,1.0/3.0);
+// A.get(0).put(3,1.0/3.0);
+
+// A.put(1, new HashMap<Integer,Double>());
+// A.get(1).put(3,1.0);
+
+// A.put(2, new HashMap<Integer,Double>());
+// A.get(2).put(3,1.0/2.0);
+// A.get(2).put(4,1.0/2.0);
+
+// A.put(3, new HashMap<Integer,Double>());
+// A.get(3).put(4,1.0);
+
+// System.err.println("A: ");
+// for (int i = 0; i < x.length; i++) {
+// 	for (int j = 0; j < x.length; j++) {
+// 		if (!A.containsKey(i)) 
+// 			System.err.print(1.0/x.length + ", ");
+// 		else
+// 			if (A.get(i).containsKey(j))
+// 				System.err.print(A.get(i).get(j) + ", ");
+// 			else
+// 				System.err.print("0.0, ");
+// 	}
+// 	System.err.println(" ");
+// }
+
+
+// matrixElementWiseMulti(A, 1.0-BORED);
+// matrixElementWiseAdd(A, BORED/x.length);
+
+// HashMap<Integer,HashMap<Integer,Double>> G = A;
+
+// System.err.println("G: ");
+// for (int i = 0; i < x.length; i++) {
+// 	for (int j = 0; j < x.length; j++) {
+// 		if (!G.containsKey(i)) 
+// 			System.err.print(1.0/x.length + ", ");
+// 		else
+// 			if (G.get(i).containsKey(j))
+// 				System.err.print(G.get(i).get(j) + ", ");
+// 			else
+// 				System.err.print(BORED/x.length + ", ");
+// 	}
+// 	System.err.println(" ");
+// }
+
+// double[] xx = {0.5,0.5};
+
+// double[] y = matrixMultiply(A, xx, 1.0/xx.length);
+
+// System.err.println("A: ");
+// for (int i = 0; i < xx.length; i++) {
+// 	for (int j = 0; j < xx.length; j++) {
+// 		if (!A.containsKey(i)) 
+// 			System.err.print(1.0/xx.length + ", ");
+// 		else
+// 			System.err.print(A.get(i).get(j) + ", ");
+// 	}
+// 	System.err.println(" ");
+// }
+// System.err.println(" ");
+// System.err.println("x: ");
+// for (int i = 0; i < xx.length; i++) {
+// 	System.err.print(xx[i] + ", ");
+// }
+// System.err.println(" ");
+// System.err.println("y: ");
+// for (int i = 0; i < xx.length; i++) {
+// 	System.err.print(y[i] + ", ");
+// }
+// System.err.println(" ");
+// System.err.println("Norm: " + vectorNorm1(y));
+
+// System.exit(1);
