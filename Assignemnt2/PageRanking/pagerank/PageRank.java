@@ -2,6 +2,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
 import java.io.*;
+import java.text.DecimalFormat;
 
 public class PageRank {
 
@@ -135,9 +136,29 @@ public class PageRank {
                 .boxed().sorted((i, j) -> Double.compare(ranks[j], ranks[i]) )
                 .mapToInt(ele -> ele).toArray();
 
+		DecimalFormat df = new DecimalFormat("#.#####");
 		for (int i = 0; i < 30; i++) {
-			System.err.println(docName[sortedIndices[i]] + " : " + ranks[sortedIndices[i]]);
+			System.err.println(docName[sortedIndices[i]] + ": " + df.format(ranks[sortedIndices[i]]));
 		}
+	}
+
+	private void writeRankings(double[] ranks, String filename) {
+		int[] sortedIndices = IntStream.range(0, ranks.length)
+                .boxed().sorted((i, j) -> Double.compare(ranks[j], ranks[i]) )
+                .mapToInt(ele -> ele).toArray();
+
+		try {
+			BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
+			// Maybe read in the titles?
+			for (int i = 0; i < ranks.length; i++) {
+				writer.write(docName[sortedIndices[i]] + ": " + ranks[sortedIndices[i]] + "\n");
+			}
+
+			writer.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
 	}
 
     /*
@@ -155,7 +176,7 @@ public class PageRank {
 		double[] x = new double[numberOfDocs];
 		double[] x_prev = new double[numberOfDocs];
 		int randomState = ThreadLocalRandom.current().nextInt(0, numberOfDocs+1);
-		//randomState = 10; / debugging
+		//randomState = 8492; / debugging
 		x[randomState] = 1.0;
 			
 		System.err.println("Random state: " + randomState);
@@ -164,61 +185,22 @@ public class PageRank {
 		while (vectorDiffNorm1(x, x_prev) > EPSILON && iteration < maxIterations) {
 			x_prev = x;
 			x = matrixMultiply(G, x_prev);
+			// Normalization if needed/wanted
 			// double n = vectorNorm1(x);
 			// for (int i = 0; i < x.length; i++)
 			// 	x[i] /= n; 
 
 			iteration++;
-
 			System.err.println("Iteration: " + iteration + ", Norm: " + vectorNorm1(x));
 		}
 
 		printTop30(x);
-
-		System.err.println(vectorNorm1(x));
+		System.err.println("Final norm: " + vectorNorm1(x));
+		writeRankings(x, "myDavisTop30.txt");
     }
 
 	private HashMap<Integer,HashMap<Integer,Double>> createProbMatrix(int numberOfDocs) {
 		HashMap<Integer,HashMap<Integer,Double>> prob = new HashMap<Integer,HashMap<Integer,Double>>();
-
-		// for (int row = 0; row < numberOfDocs; row++) {
-		// 	prob.put(row, new HashMap<Integer,Double>());
-
-		// 	double rowSum = 0;
-
-		// 	if (out[row] > 0) {
-		// 		for (int col : link.get(row).keySet()) {
-		// 			prob.get(row).put(col, (double)1/out[row]);
-		// 			rowSum += (double)1/out[row];
-		// 		}
-		// 	} else {
-		// 		// add 1/ numdocs
-		// 	}
-
-		// 	for (int col = 0; col < numberOfDocs; col++) {
-				
-
-		// 		if (link.get(row) == null) {
-		// 			prob.get(row).put(col, (double)1/numberOfDocs);
-		// 			rowSum += (double)1/numberOfDocs;
-		// 			continue;
-		// 		}
-
-		// 		if (link.get(row).get(col) == null) {
-		// 			prob.get(row).put(col, 0.0);
-		// 			continue;
-		// 		}
-
-		// 		if (prob.get(row).get(col) == null) {
-		// 			prob.get(row).put(col, (double)1/out[row]);
-		// 			rowSum += (double)1/out[row];
-		// 		}
-		// 	}
-
-		// 	if (!(Math.abs(1-rowSum) < 0.000001)) {
-		// 		System.err.println("Row did not sum to 1: " + rowSum);
-		// 	}
-		// }
 		
 		for (int row : link.keySet()) {
 			prob.put(row, new HashMap<Integer,Double>());
@@ -230,7 +212,7 @@ public class PageRank {
 			}
 
 			if (!(Math.abs(1.0-rowSum) < 0.000001)) {
-				System.err.println("Row did not sum to 1: " + rowSum);
+				System.err.println("Row did not sum to 1: " + rowSum); // just a sanity check
 			}
 		}
 
@@ -276,21 +258,6 @@ public class PageRank {
 	private double[] matrixMultiply(HashMap<Integer,HashMap<Integer,Double>> prob, double[] x) {
 		/// Takes a row vector and multiplies it with a matrix (x*A=x')
 		double[] x_prime = new double[x.length];
-
-		// for (int row = 0; row < x.length; row++) {
-		// 	if (prob.containsKey(row)) {
-		// 		for (int col = 0; col < x.length; col++) {
-		// 			if (prob.get(row).containsKey(col))
-		// 				x_prime[col] += prob.get(row).get(col) * x[row];
-		// 			else
-		// 				x_prime[col] += BORED/x.length * x[row];
-		// 		}
-		// 	} else {
-		// 		for (int col = 0; col < x.length; col++) {
-		// 			x_prime[col] += 1.0/x.length * x[row];
-		// 		}
-		// 	}
-		// }
 
 		for (int row = 0; row < x.length; row++) {
 			for (int col = 0; col < x.length; col++) {
