@@ -61,6 +61,9 @@ public class PersistentHashedIndex implements Index {
     /** The cache as a main-memory hash map. */
     HashMap<String,PostingsList> index = new HashMap<String,PostingsList>();
 
+    /** Page-Ranking file name */
+    public static final String PAGERANKING_FNAME = "myDavis.txt";
+
     protected static final String DATA_SEPARATOR = " ";
 	
 	public LocalDateTime startTime;
@@ -121,12 +124,26 @@ public class PersistentHashedIndex implements Index {
 
         try {
             readDocInfo();
+            readPageRanking();
         } catch ( FileNotFoundException e ) {
         } catch ( IOException e ) {
             e.printStackTrace();
         }
         
         startTime = LocalDateTime.now();
+    }
+
+    /* Read page-ranking into memory */
+    protected void readPageRanking() {
+        try (BufferedReader br = new BufferedReader(new FileReader(PAGERANKING_FNAME))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] data = line.split(";");
+                pageRanking.put(data[0], Double.parseDouble(data[1]));
+            }
+        } catch ( IOException e ) {
+            e.printStackTrace();
+        }
     }
 
     /**

@@ -143,15 +143,31 @@ public class PageRank {
 	}
 
 	private void writeRankings(double[] ranks, String filename) {
+		HashMap<String,String> nameToFile = new HashMap<String,String>();
+		try {
+			BufferedReader in = new BufferedReader( new FileReader( "davisTitles.txt" ));
+			String line;
+			while ((line = in.readLine()) != null) {
+				int index = line.indexOf( ";" );
+				String name = line.substring(0, index );
+				String file = line.substring(index +1, line.length());
+				nameToFile.put(name,file);
+			}
+			in.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		// Write rankings
 		int[] sortedIndices = IntStream.range(0, ranks.length)
                 .boxed().sorted((i, j) -> Double.compare(ranks[j], ranks[i]) )
                 .mapToInt(ele -> ele).toArray();
-
+				
 		try {
 			BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
 			// Maybe read in the titles?
 			for (int i = 0; i < ranks.length; i++) {
-				writer.write(docName[sortedIndices[i]] + ": " + ranks[sortedIndices[i]] + "\n");
+				writer.write(nameToFile.get(docName[sortedIndices[i]]) + ";" + ranks[sortedIndices[i]] + "\n");
 			}
 
 			writer.close();
@@ -176,7 +192,7 @@ public class PageRank {
 		double[] x = new double[numberOfDocs];
 		double[] x_prev = new double[numberOfDocs];
 		int randomState = ThreadLocalRandom.current().nextInt(0, numberOfDocs+1);
-		//randomState = 8492; / debugging
+		//randomState = 8492; // debugging
 		x[randomState] = 1.0;
 			
 		System.err.println("Random state: " + randomState);
@@ -196,7 +212,7 @@ public class PageRank {
 
 		printTop30(x);
 		System.err.println("Final norm: " + vectorNorm1(x));
-		writeRankings(x, "myDavisTop30.txt");
+		writeRankings(x, "myDavis.txt");
     }
 
 	private HashMap<Integer,HashMap<Integer,Double>> createProbMatrix(int numberOfDocs) {

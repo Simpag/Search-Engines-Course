@@ -11,6 +11,7 @@ import java.awt.event.*;
 import javax.swing.*;
 import javax.swing.text.*;
 import javax.swing.event.*;
+import javax.swing.plaf.DimensionUIResource;
 import javax.swing.border.*;
 import java.util.*;
 import java.io.*;
@@ -53,6 +54,7 @@ public class SearchGUI extends JFrame {
     public JPanel resultWindow = new JPanel();
     private JScrollPane resultPane = new JScrollPane( resultWindow );
     public JTextField queryWindow = new JTextField( "", 28 );
+    public JTextField combinationWindow = new JTextField( "0.85", 28 );
     public JTextArea docTextView = new JTextArea( "", 15, 28 );
     private JScrollPane docViewPane = new JScrollPane( docTextView );
     private Font queryFont = new Font( "Arial", Font.BOLD, 24 );
@@ -131,6 +133,15 @@ public class SearchGUI extends JFrame {
         p1.setLayout(new BoxLayout(p1, BoxLayout.X_AXIS));
         p1.add( new JLabel( new ImageIcon( engine.pic_file )));
         p.add( p1 );
+        // Ratio for combination ranked retreival
+        JPanel p4 = new JPanel();
+        p4.setLayout(new BoxLayout(p4, BoxLayout.X_AXIS));
+        JLabel combinationLabel = new JLabel( "TF_IDF to PageRank ratio:" );
+        combinationLabel.setFont( resultFont );
+        p4.add( combinationLabel );
+        p4.add(combinationWindow);
+        combinationWindow.setFont(queryFont);
+        p.add( p4 );
         // Search box
         JPanel p3 = new JPanel();
         p3.setLayout(new BoxLayout(p3, BoxLayout.X_AXIS));
@@ -170,9 +181,11 @@ public class SearchGUI extends JFrame {
                 // Search and print results. Access to the index is synchronized since
                 // we don't want to search at the same time we're indexing new files
                 // (this might corrupt the index).
+                String ratioString = combinationWindow.getText().toLowerCase().trim();
+                double ratioDouble = Double.parseDouble(ratioString);
                 long startTime = System.currentTimeMillis();
                 synchronized ( engine.indexLock ) {
-                    results = engine.searcher.search( query, queryType, rankingType, normType );
+                    results = engine.searcher.search( query, queryType, rankingType, normType, ratioDouble );
                 }
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 // Display the first few results + a button to see all results.

@@ -10,7 +10,9 @@ package ir;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.StringTokenizer;
 import java.lang.Math;
 
 /**
@@ -34,7 +36,7 @@ public class Searcher {
      *  Searches the index for postings matching the query.
      *  @return A postings list representing the result of the query.
      */
-    public PostingsList search( Query query, QueryType queryType, RankingType rankingType, NormalizationType normType ) { 
+    public PostingsList search( Query query, QueryType queryType, RankingType rankingType, NormalizationType normType, double ratio) { 
         //
         //  REPLACE THE STATEMENT BELOW WITH YOUR CODE
         // 
@@ -50,33 +52,53 @@ public class Searcher {
                 break;
 
             case RANKED_QUERY:
-                ret = ranked_query(query);
+                ret = ranked_query(query, rankingType, ratio);
                 break;
         
             default:
-                System.err.println("Some error occured in Searcher.java (wrong queryType)");
+                System.err.println("Some error occured in Searcher.java (wrong QueryType)");
                 break;
         }
         
         return ret;
     }
 
-    private PostingsList ranked_query(Query query) {
+    private PostingsList ranked_query(Query query, RankingType rankingType, double ratio) {
         ArrayList<PostingsList> terms = new ArrayList<PostingsList>();
         for (int i = 0, size = query.size(); i < size; i++)
         {
             String token = query.queryterm.get(i).term;
             PostingsList p = index.getPostings(token);
+            if (p == null) 
+                continue;
+            terms.add(p);
+        }
 
-            if (p != null){
-                caluclate_scores(p);
-                terms.add(p);
-            }
+        switch (rankingType) {
+            case TF_IDF:
+                caluclate_tf_idf(terms);       
+                break;
+
+            case PAGERANK:
+                caluclate_page_ranking(terms);       
+                break;
+
+            case COMBINATION:
+                caluclate_combined_ranking(terms, ratio);       
+                break;
+        
+            default:
+                System.err.println("Some error occured in Searcher.java (wrong RankingType)");
+                break;
         }
 
         // merge
         Iterator<PostingsList> piter = terms.iterator();
-        PostingsList res = piter.next();
+        PostingsList res;
+        if (piter.hasNext())
+            res = piter.next();
+        else
+            return null;
 
         while (piter.hasNext()) {
             Iterator<PostingsEntry> eiter = piter.next().iterator();
@@ -95,17 +117,60 @@ public class Searcher {
         return res;
     }
 
-    private void caluclate_scores(PostingsList p) {
-        double df_t = p.size();
-        double idf_t = Math.log(index.corpusSize()/df_t);
+    private void caluclate_tf_idf(ArrayList<PostingsList> list) {
+        for (PostingsList p : list) {
+            double df_t = p.size();
+            double idf_t = Math.log(index.corpusSize()/df_t);
 
-        for (int d = 0; d < p.size(); d++) {
-            PostingsEntry entry = p.get(d);
-            double tf_dt = entry.offset.size();            
-            
-            double tf_idf_t = (tf_dt * idf_t) / Index.docLengths.get(entry.docID);
+            for (int d = 0; d < p.size(); d++) {
+                PostingsEntry entry = p.get(d);
+                double tf_dt = entry.offset.size();            
+                
+                double tf_idf_t = (tf_dt * idf_t) / Index.docLengths.get(entry.docID);
 
-            entry.score = tf_idf_t;
+                entry.score = tf_idf_t;
+            }
+        }
+    }
+
+    private void caluclate_page_ranking(ArrayList<PostingsList> list) {
+        for (PostingsList p : list) {
+            for (int d = 0; d < p.size(); d++) {
+                PostingsEntry entry = p.get(d);
+                entry.score = Index.pageRanking.get( getFileName( Index.docNames.get(entry.docID) ) );
+            }
+        }
+    }
+
+    private void caluclate_combined_ranking(ArrayList<PostingsList> list, double ratio) {
+        HashMap<PostingsEntry, Double> tf_idfs = new HashMap<PostingsEntry, Double>();
+        HashMap<PostingsEntry, Double> page_ranks = new HashMap<PostingsEntry, Double>();
+        double tf_idfs_sum = 0;
+        double page_ranks_sum = 0;
+        for (PostingsList p : list) {
+            double df_t = p.size();
+            double idf_t = Math.log(index.corpusSize()/df_t);
+
+            for (int d = 0; d < p.size(); d++) {
+                PostingsEntry entry = p.get(d);
+                double pageRank = Index.pageRanking.get( getFileName( Index.docNames.get(entry.docID) ) );
+                page_ranks.put( entry, pageRank );
+                page_ranks_sum += pageRank;
+
+                double tf_dt = entry.offset.size();            
+                double tf_idf_t = (tf_dt * idf_t) / Index.docLengths.get(entry.docID);
+                tf_idfs.put( entry, tf_idf_t );
+                tf_idfs_sum += tf_idf_t;
+            }
+        }
+
+        // Normalize both scores and set them
+        for (PostingsList p : list) {
+            for (int d = 0; d < p.size(); d++) {
+                PostingsEntry entry = p.get(d);
+                entry.score = ratio * tf_idfs.get(entry) / tf_idfs_sum + 
+                              (1-ratio) * page_ranks.get(entry) / page_ranks_sum;
+            }
         }
     }
 
@@ -212,5 +277,17 @@ public class Searcher {
         }
         
         return null;
+    }
+
+    /**
+     *  Returns the filename at the end of a path.
+     */
+    private String getFileName(String path) {
+        String result = "";
+        StringTokenizer tok = new StringTokenizer( path, "\\/" );
+        while ( tok.hasMoreTokens() ) {
+            result = tok.nextToken();
+        }
+        return result;
     }
 }
