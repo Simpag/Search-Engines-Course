@@ -45,6 +45,9 @@ public class PersistentHashedIndex implements Index {
     /** The doc info file name */
     public static final String DOCINFO_FNAME = "docInfo";
 
+    /** The euclidean length file name */
+    public static final String EUCLEN_FNAME = "euclen";
+
     /** The dictionary hash table on disk can fit this many entries. */
     public static final long TABLESIZE = 611_953L; //3_503_119L //611_953L
 
@@ -125,6 +128,7 @@ public class PersistentHashedIndex implements Index {
         try {
             readDocInfo();
             readPageRanking();
+            readEucLen();
         } catch ( FileNotFoundException e ) {
         } catch ( IOException e ) {
             e.printStackTrace();
@@ -135,7 +139,7 @@ public class PersistentHashedIndex implements Index {
 
     /* Read page-ranking into memory */
     protected void readPageRanking() {
-        try (BufferedReader br = new BufferedReader(new FileReader(PAGERANKING_FNAME))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(INDEXDIR + "/" + PAGERANKING_FNAME))) {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] data = line.split(";");
@@ -288,6 +292,115 @@ public class PersistentHashedIndex implements Index {
             }
         }
         freader.close();
+    }
+
+    /* Create euclidean length file */
+    protected void createEucLen() throws IOException {
+        System.err.print("Starting to calculate euclidean length...");
+        HashMap<Integer, HashMap<String, Double>> euclen = new HashMap<Integer, HashMap<String, Double>>();
+        Set<Integer> docSet = docLengths.keySet();
+        int cnt = 0;
+
+        for (int doc : docSet) {
+            euclen.put(doc, new HashMap<String, Double>());
+        }
+
+        for (String term : index.keySet()) {
+            PostingsList p = index.get(term);
+            double df_t = p.size();
+            double idf_t = Math.log((double)corpusSize()/df_t);
+
+            for (int doc : docSet) {
+                PostingsEntry e = p.getDoc(doc);
+
+                if (e == null)
+                    continue;
+
+                double tf_dt = e.offset.size();
+
+                //if (!euclen.get(doc).containsKey(term))
+                //    euclen.get(doc).put(term, 0);
+
+                //euclen.get(doc).put(term, euclen.get(doc).get(term) + e.offset.size());
+                euclen.get(doc).put(term, tf_dt * idf_t);
+            }
+
+            if (cnt++%1000 == 0)
+                System.err.print(cnt-1 + ", ");
+        }
+
+        /*
+        HashMap<String, Double> euclen = new HashMap<String, Double>();
+        int cnt = 0;
+        for (int doc : docLengths.keySet()) {
+            HashMap<String, Integer> t_vector = new HashMap<String, Integer>(); 
+
+            for (String term : index.keySet()) {
+                PostingsList p = index.get(term);
+
+                if (p == null)
+                    continue;
+
+                PostingsEntry e = p.getDoc(doc);
+
+                if (e == null)
+                    continue;
+
+                if (!t_vector.containsKey(term))
+                    t_vector.put(term, 0);
+
+                t_vector.put(term, t_vector.get(term) + e.offset.size());
+            }
+            double elen = 0.0;
+
+            for (String term : t_vector.keySet()) {
+                elen += Math.pow((double)t_vector.get(term), 2.0);
+            }
+
+            euclen.put(docNames.get(doc), Math.sqrt(elen));
+
+            if (cnt++%1000 == 0)
+                System.err.print(cnt-1 + ", ");
+        }
+        */
+        
+        
+        FileOutputStream fout = new FileOutputStream(INDEXDIR + "/" + EUCLEN_FNAME);
+        for ( int doc : docSet ) {
+            String docName = docNames.get(doc);
+            HashMap<String, Double> t_vector = euclen.get(doc);
+
+            double len = 0.0;
+
+            for (String term : t_vector.keySet()) {
+                len += Math.pow(t_vector.get(term), 2.0);
+            }
+            
+            String euclenEntry = getFileName(docName) + ";" + Math.sqrt(len) + "\n";
+            fout.write( euclenEntry.getBytes() );
+        }
+        fout.close();
+
+        System.err.println("Done!");
+    }
+
+    protected void readEucLen() throws IOException {
+        File f = new File(INDEXDIR + "/" + EUCLEN_FNAME);
+        
+        if (!f.exists()) {
+            System.err.println("No euclidian length file!");
+            return;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] data = line.strip().split(";");
+                euclidianLength.put(data[0], Double.parseDouble(data[1]));
+            }
+        } catch ( IOException e ) {
+            e.printStackTrace();
+        }
     }
 
     // ========================================================================
@@ -554,12 +667,14 @@ public class PersistentHashedIndex implements Index {
         System.err.print( "Writing index to disk..." );
         writeIndex(true);
         try {
+            createEucLen();
+            readEucLen();
             dataFile.getChannel().force(false);;
             dictionaryFile.getChannel().force(false);
             readDictionaryFile.getChannel().force(false);
-            readDictionaryFile.close();
-            dictionaryFile.close();
-            dataFile.close();
+            //readDictionaryFile.close();
+            //dictionaryFile.close();
+            //dataFile.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -589,6 +704,18 @@ public class PersistentHashedIndex implements Index {
 
     protected long get_pointer_from_hash(int hash) {
         return (Entry.byte_size+1) * hash; // adding one because I've never used java and dont know if some functions are inclusive and I dont feel like finding out
+    }
+
+    /**
+     *  Returns the filename at the end of a path.
+     */
+    private String getFileName(String path) {
+        String result = "";
+        StringTokenizer tok = new StringTokenizer( path, "\\/" );
+        while ( tok.hasMoreTokens() ) {
+            result = tok.nextToken();
+        }
+        return result;
     }
 
     public int corpusSize() {

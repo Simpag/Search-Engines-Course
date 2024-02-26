@@ -52,7 +52,7 @@ public class Searcher {
                 break;
 
             case RANKED_QUERY:
-                ret = ranked_query(query, rankingType, ratio);
+                ret = ranked_query(query, rankingType, normType, ratio);
                 break;
         
             default:
@@ -63,7 +63,7 @@ public class Searcher {
         return ret;
     }
 
-    private PostingsList ranked_query(Query query, RankingType rankingType, double ratio) {
+    private PostingsList ranked_query(Query query, RankingType rankingType, NormalizationType normType, double ratio) {
         ArrayList<PostingsList> terms = new ArrayList<PostingsList>();
         for (int i = 0, size = query.size(); i < size; i++)
         {
@@ -76,7 +76,7 @@ public class Searcher {
 
         switch (rankingType) {
             case TF_IDF:
-                caluclate_tf_idf(terms);       
+                caluclate_tf_idf(terms, normType);       
                 break;
 
             case PAGERANK:
@@ -84,7 +84,7 @@ public class Searcher {
                 break;
 
             case COMBINATION:
-                caluclate_combined_ranking(terms, ratio);       
+                caluclate_combined_ranking(terms, normType, ratio);       
                 break;
         
             default:
@@ -117,16 +117,23 @@ public class Searcher {
         return res;
     }
 
-    private void caluclate_tf_idf(ArrayList<PostingsList> list) {
+    private void caluclate_tf_idf(ArrayList<PostingsList> list, NormalizationType normType) {
         for (PostingsList p : list) {
             double df_t = p.size();
-            double idf_t = Math.log(index.corpusSize()/df_t);
+            double idf_t = Math.log((double)index.corpusSize()/df_t);
 
             for (int d = 0; d < p.size(); d++) {
                 PostingsEntry entry = p.get(d);
                 double tf_dt = entry.offset.size();            
                 
-                double tf_idf_t = (tf_dt * idf_t) / Index.docLengths.get(entry.docID);
+                double norm = -1;
+
+                if (normType == NormalizationType.NUMBER_OF_WORDS)
+                    norm = (double)Index.docLengths.get(entry.docID);
+                else if (normType == NormalizationType.EUCLIDEAN)
+                    norm = Index.euclidianLength.get(getFileName(Index.docNames.get(entry.docID)));
+
+                double tf_idf_t = (tf_dt * idf_t) / norm;
 
                 entry.score = tf_idf_t;
             }
@@ -142,7 +149,7 @@ public class Searcher {
         }
     }
 
-    private void caluclate_combined_ranking(ArrayList<PostingsList> list, double ratio) {
+    private void caluclate_combined_ranking(ArrayList<PostingsList> list, NormalizationType normType, double ratio) {
         HashMap<PostingsEntry, Double> tf_idfs = new HashMap<PostingsEntry, Double>();
         HashMap<PostingsEntry, Double> page_ranks = new HashMap<PostingsEntry, Double>();
         double tf_idfs_sum = 0;
@@ -157,8 +164,13 @@ public class Searcher {
                 page_ranks.put( entry, pageRank );
                 page_ranks_sum += pageRank;
 
-                double tf_dt = entry.offset.size();            
-                double tf_idf_t = (tf_dt * idf_t) / Index.docLengths.get(entry.docID);
+                double tf_dt = entry.offset.size();      
+                double norm = -1;
+                if (normType == NormalizationType.NUMBER_OF_WORDS)
+                    norm = Index.docLengths.get(entry.docID);
+                else if (normType == NormalizationType.EUCLIDEAN)
+                    norm = Index.euclidianLength.get(Index.docNames.get(entry.docID));      
+                double tf_idf_t = (tf_dt * idf_t) / norm;
                 tf_idfs.put( entry, tf_idf_t );
                 tf_idfs_sum += tf_idf_t;
             }

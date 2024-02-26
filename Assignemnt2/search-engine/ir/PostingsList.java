@@ -29,6 +29,15 @@ public class PostingsList {
         return list.get( i );
     }
 
+    /** Returns the posting with docID. */
+    public PostingsEntry getDoc( int docID ) {
+        for (PostingsEntry e : list) {
+            if (e.docID == docID)
+                return e;
+        }
+        return null;
+    }
+
     // 
     //  YOUR CODE HERE - done?
     //

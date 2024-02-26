@@ -25,6 +25,9 @@ public interface Index {
     /** Page-Ranking scores */
     public HashMap<String,Double> pageRanking = new HashMap<String,Double>();
 
+    /** Euclidian length of each document */
+    public HashMap<String,Double> euclidianLength = new HashMap<String,Double>();
+
     /** Inserts a token into the index. */
     public void insert( String token, int docID, int offset );
 
