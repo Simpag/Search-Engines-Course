@@ -300,7 +300,7 @@ public class PersistentHashedIndex implements Index {
         HashMap<Integer, HashMap<String, Double>> euclen = new HashMap<Integer, HashMap<String, Double>>();
         Set<Integer> docSet = docLengths.keySet();
         int cnt = 0;
-
+        
         for (int doc : docSet) {
             euclen.put(doc, new HashMap<String, Double>());
         }
@@ -318,51 +318,12 @@ public class PersistentHashedIndex implements Index {
 
                 double tf_dt = e.offset.size();
 
-                //if (!euclen.get(doc).containsKey(term))
-                //    euclen.get(doc).put(term, 0);
-
-                //euclen.get(doc).put(term, euclen.get(doc).get(term) + e.offset.size());
                 euclen.get(doc).put(term, tf_dt * idf_t);
             }
 
             if (cnt++%1000 == 0)
                 System.err.print(cnt-1 + ", ");
         }
-
-        /*
-        HashMap<String, Double> euclen = new HashMap<String, Double>();
-        int cnt = 0;
-        for (int doc : docLengths.keySet()) {
-            HashMap<String, Integer> t_vector = new HashMap<String, Integer>(); 
-
-            for (String term : index.keySet()) {
-                PostingsList p = index.get(term);
-
-                if (p == null)
-                    continue;
-
-                PostingsEntry e = p.getDoc(doc);
-
-                if (e == null)
-                    continue;
-
-                if (!t_vector.containsKey(term))
-                    t_vector.put(term, 0);
-
-                t_vector.put(term, t_vector.get(term) + e.offset.size());
-            }
-            double elen = 0.0;
-
-            for (String term : t_vector.keySet()) {
-                elen += Math.pow((double)t_vector.get(term), 2.0);
-            }
-
-            euclen.put(docNames.get(doc), Math.sqrt(elen));
-
-            if (cnt++%1000 == 0)
-                System.err.print(cnt-1 + ", ");
-        }
-        */
         
         
         FileOutputStream fout = new FileOutputStream(INDEXDIR + "/" + EUCLEN_FNAME);

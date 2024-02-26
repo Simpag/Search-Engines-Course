@@ -144,12 +144,13 @@ public class Searcher {
         for (PostingsList p : list) {
             for (int d = 0; d < p.size(); d++) {
                 PostingsEntry entry = p.get(d);
-                entry.score = Index.pageRanking.get( getFileName( Index.docNames.get(entry.docID) ) );
+                entry.score = Index.pageRanking.get(getFileName(Index.docNames.get(entry.docID)));
             }
         }
     }
 
     private void caluclate_combined_ranking(ArrayList<PostingsList> list, NormalizationType normType, double ratio) {
+        // could probably use the above functions to make it nicer but im lazy and copy pasta
         HashMap<PostingsEntry, Double> tf_idfs = new HashMap<PostingsEntry, Double>();
         HashMap<PostingsEntry, Double> page_ranks = new HashMap<PostingsEntry, Double>();
         double tf_idfs_sum = 0;
@@ -160,7 +161,7 @@ public class Searcher {
 
             for (int d = 0; d < p.size(); d++) {
                 PostingsEntry entry = p.get(d);
-                double pageRank = Index.pageRanking.get( getFileName( Index.docNames.get(entry.docID) ) );
+                double pageRank = Index.pageRanking.get(getFileName(Index.docNames.get(entry.docID)));
                 page_ranks.put( entry, pageRank );
                 page_ranks_sum += pageRank;
 
@@ -169,7 +170,7 @@ public class Searcher {
                 if (normType == NormalizationType.NUMBER_OF_WORDS)
                     norm = Index.docLengths.get(entry.docID);
                 else if (normType == NormalizationType.EUCLIDEAN)
-                    norm = Index.euclidianLength.get(Index.docNames.get(entry.docID));      
+                    norm = Index.euclidianLength.get(getFileName(Index.docNames.get(entry.docID)));      
                 double tf_idf_t = (tf_dt * idf_t) / norm;
                 tf_idfs.put( entry, tf_idf_t );
                 tf_idfs_sum += tf_idf_t;
