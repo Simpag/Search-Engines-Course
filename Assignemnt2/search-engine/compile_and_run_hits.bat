@@ -1,0 +1,2 @@
+javac -cp . -d classes ir/HITSRanker.java
+java -cp classes ir.HITSRanker C:\Users\Simon\Documents\Github\Search-Engines-Course\Assignemnt2\PageRanking\pagerank\linksDavis.txt C:\Users\Simon\Documents\Github\Search-Engines-Course\Assignemnt2\PageRanking\pagerank\davisTitles.txt

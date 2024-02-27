@@ -12,5 +12,5 @@ package ir;
  *  the course. 
  */
 public enum QueryType {
-    INTERSECTION_QUERY, PHRASE_QUERY, RANKED_QUERY 
+    INTERSECTION_QUERY, PHRASE_QUERY, RANKED_QUERY
 }

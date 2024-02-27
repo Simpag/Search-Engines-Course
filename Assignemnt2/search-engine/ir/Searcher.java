@@ -25,11 +25,15 @@ public class Searcher {
 
     /** The k-gram index to be searched by this Searcher */
     KGramIndex kgIndex;
+
+    HITSRanker hitsRanker;
     
     /** Constructor */
     public Searcher( Index index, KGramIndex kgIndex ) {
         this.index = index;
         this.kgIndex = kgIndex;
+        this.hitsRanker = new HITSRanker("C:/Users/Simon/Documents/Github/Search-Engines-Course/Assignemnt2/PageRanking/pagerank/linksDavis.txt", 
+        "C:/Users/Simon/Documents/Github/Search-Engines-Course/Assignemnt2/PageRanking/pagerank/davisTitles.txt", index);
     }
 
     /**
@@ -76,15 +80,19 @@ public class Searcher {
 
         switch (rankingType) {
             case TF_IDF:
-                caluclate_tf_idf(terms, normType);       
+                calculate_tf_idf(terms, normType);       
                 break;
 
             case PAGERANK:
-                caluclate_page_ranking(terms);       
+                calculate_page_ranking(terms);       
                 break;
 
             case COMBINATION:
-                caluclate_combined_ranking(terms, normType, ratio);       
+                calculate_combined_ranking(terms, normType, ratio);       
+                break;
+
+            case HITS:
+                calculate_hits_ranking(terms, ratio);
                 break;
         
             default:
@@ -117,7 +125,7 @@ public class Searcher {
         return res;
     }
 
-    private void caluclate_tf_idf(ArrayList<PostingsList> list, NormalizationType normType) {
+    private void calculate_tf_idf(ArrayList<PostingsList> list, NormalizationType normType) {
         for (PostingsList p : list) {
             double df_t = p.size();
             double idf_t = Math.log((double)index.corpusSize()/df_t);
@@ -140,7 +148,7 @@ public class Searcher {
         }
     }
 
-    private void caluclate_page_ranking(ArrayList<PostingsList> list) {
+    private void calculate_page_ranking(ArrayList<PostingsList> list) {
         for (PostingsList p : list) {
             for (int d = 0; d < p.size(); d++) {
                 PostingsEntry entry = p.get(d);
@@ -149,7 +157,7 @@ public class Searcher {
         }
     }
 
-    private void caluclate_combined_ranking(ArrayList<PostingsList> list, NormalizationType normType, double ratio) {
+    private void calculate_combined_ranking(ArrayList<PostingsList> list, NormalizationType normType, double ratio) {
         // could probably use the above functions to make it nicer but im lazy and copy pasta
         HashMap<PostingsEntry, Double> tf_idfs = new HashMap<PostingsEntry, Double>();
         HashMap<PostingsEntry, Double> page_ranks = new HashMap<PostingsEntry, Double>();
@@ -185,6 +193,30 @@ public class Searcher {
                               (1-ratio) * page_ranks.get(entry) / page_ranks_sum;
             }
         }
+    }
+
+    private void calculate_hits_ranking(ArrayList<PostingsList> list, double ratio) {
+        Iterator<PostingsList> piter = list.iterator();
+        PostingsList plist;
+        if (piter.hasNext())
+            plist = piter.next();
+        else
+            return;
+
+        while (piter.hasNext()) {
+            Iterator<PostingsEntry> eiter = piter.next().iterator();
+            PostingsEntry e;
+            while (eiter.hasNext()) {
+                e = eiter.next();
+                if (!plist.containsDocID(e.docID)) {
+                    plist.insert(e.docID, e.score, 0);
+                }
+            }
+        }
+
+        plist = hitsRanker.rank(plist, ratio);
+        list.clear();
+        list.add(plist);
     }
 
 
