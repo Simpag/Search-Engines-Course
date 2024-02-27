@@ -191,7 +191,7 @@ public class PageRank {
 		// Init state
 		double[] x = new double[numberOfDocs];
 		double[] x_prev = new double[numberOfDocs];
-		int randomState = ThreadLocalRandom.current().nextInt(0, numberOfDocs+1);
+		int randomState = ThreadLocalRandom.current().nextInt(0, numberOfDocs);
 		//randomState = 8492; // debugging
 		x[randomState] = 1.0;
 			
