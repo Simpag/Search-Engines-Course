@@ -122,6 +122,11 @@ public class Searcher {
         }
 
         res.sortByScores();
+
+        // for (int i = 0; i < 50; i++) {
+        //     System.err.println("1 " + getFileName(Index.docNames.get(res.get(i).docID)));
+        // }
+
         return res;
     }
 
