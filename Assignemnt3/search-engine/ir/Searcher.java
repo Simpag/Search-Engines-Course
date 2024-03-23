@@ -100,6 +100,9 @@ public class Searcher {
                 break;
         }
 
+        long startTime = System.currentTimeMillis();
+
+
         // merge
         Iterator<PostingsList> piter = terms.iterator();
         PostingsList res;
@@ -117,9 +120,24 @@ public class Searcher {
                     res.addScore(e.docID, e.score);
                 } else {
                     res.insert(e.docID, e.score, 0);
+                    //res.sortByDocID();
                 }
             }
         }
+
+        /*PostingsList res = new PostingsList();
+        for (PostingsList p : terms) {
+            for (int j = 0; j < p.size(); j++) {
+                if (res.containsDocID(p.get(j).docID)) {
+                    res.addScore(p.get(j).docID, p.get(j).score);
+                } else {
+                    res.insert(p.get(j).docID, p.get(j).score, 0);
+                }
+            }
+        }*/
+
+        // long elapsedTime = System.currentTimeMillis() - startTime;
+        // System.err.println("Merge took: " + elapsedTime + " ms");
 
         res.sortByScores();
 
@@ -131,6 +149,8 @@ public class Searcher {
     }
 
     private ArrayList<PostingsList> calculate_tf_idf(Query query, NormalizationType normType) {
+        long startTime = System.currentTimeMillis();
+
         ArrayList<PostingsList> terms = new ArrayList<PostingsList>();
         for (int i = 0, size = query.size(); i < size; i++) {
             String token = query.queryterm.get(i).term;
@@ -158,6 +178,9 @@ public class Searcher {
             }
             terms.add(p);
         }
+
+        // long elapsedTime = System.currentTimeMillis() - startTime;
+        // System.err.println("TF_IDFS took: " + elapsedTime + " ms");
 
         return terms;
     }

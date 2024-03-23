@@ -46,7 +46,7 @@ public class Query {
      *  Should be between 0 and 1.
      *  (only used in assignment 3).
      */
-    double alpha = 0.2;
+    double alpha = 0.99;
 
     /**  
      *  Relevance feedback constant beta (= weight of query terms obtained by
@@ -117,6 +117,7 @@ public class Query {
         //
         //  YOUR CODE HERE
         //
+        long startTime = System.currentTimeMillis();
 
         Set<String> allTerms = new HashSet<String>();
         int num_relevant = 0;
@@ -153,6 +154,9 @@ public class Query {
                 }
             }            
         }
+
+        // long elapsedTime = System.currentTimeMillis() - startTime;
+        // System.err.println("Feedback took: " + elapsedTime + " ms");
 
 
         // 1. Get the relevant documents
