@@ -114,6 +114,11 @@ public class Query {
         //
         //  YOUR CODE HERE
         //
+
+        int num_relevant = docIsRelevant.length;
+        // 1. Get the relevant documents
+        // 2. Add the terms in those documents onto the queryterm list
+        // 3. 
     }
 }
 
