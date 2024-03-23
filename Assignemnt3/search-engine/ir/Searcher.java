@@ -80,7 +80,7 @@ public class Searcher {
 
         switch (rankingType) {
             case TF_IDF:
-                calculate_tf_idf(terms, normType);       
+                terms = calculate_tf_idf(query, normType);       
                 break;
 
             case PAGERANK:
@@ -130,14 +130,20 @@ public class Searcher {
         return res;
     }
 
-    private void calculate_tf_idf(ArrayList<PostingsList> list, NormalizationType normType) {
-        for (PostingsList p : list) {
+    private ArrayList<PostingsList> calculate_tf_idf(Query query, NormalizationType normType) {
+        ArrayList<PostingsList> terms = new ArrayList<PostingsList>();
+        for (int i = 0, size = query.size(); i < size; i++) {
+            String token = query.queryterm.get(i).term;
+            Double weight = query.queryterm.get(i).weight;
+            PostingsList p = index.getPostings(token);
+            if (p == null) 
+                continue;
             double df_t = p.size();
             double idf_t = Math.log((double)index.corpusSize()/df_t);
 
             for (int d = 0; d < p.size(); d++) {
                 PostingsEntry entry = p.get(d);
-                double tf_dt = entry.offset.size();            
+                double tf_dt = entry.offset.size() * weight;
                 
                 double norm = -1;
 
@@ -150,7 +156,10 @@ public class Searcher {
 
                 entry.score = tf_idf_t;
             }
+            terms.add(p);
         }
+
+        return terms;
     }
 
     private void calculate_page_ranking(ArrayList<PostingsList> list) {
