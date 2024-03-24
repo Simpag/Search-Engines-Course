@@ -52,24 +52,26 @@ public class Searcher {
         //
         //  REPLACE THE STATEMENT BELOW WITH YOUR CODE
         // 
-        ArrayList<PostingsList> posts = new ArrayList<PostingsList>();
+        PostingsList ret = null;
+        //ArrayList<PostingsList> posts = new ArrayList<PostingsList>();
         ArrayList<Query> queries = createWildcardQueries(query);
         //ArrayList<Query> queries = new ArrayList<>();
         //queries.add(query);
 
         // zombie should return:::
-        // zombie, emilymaas.jpg, forgive, wiki, for, promise, while, good, rolling, 2006, her, too, children, and, edits, katamari, http://kawaiikitcat.livejournal.com/profile, up, pigeon, a, image, though, in, was, i, is, also, livejournal, girl, molesting, any, really, nice, odd, she, weird, s, at, obsesses, much, who,
+        // zombie;1.0, emilymaas.jpg;0.8, forgive;0.8, wiki;0.8, for;1.6, promise;0.8, while;0.8, good;0.8, rolling;0.8, 2006;0.8, her;0.8, too;0.8, children;0.8, and;0.8, edits;0.8, katamari;0.8, http://kawaiikitcat.livejournal.com/profile;0.8, up;0.8, pigeon;0.8, a;2.4000000000000004, image;0.8, though;0.8, in;0.8, was;0.8, i;0.8, is;0.8, also;0.8, livejournal;0.8, girl;1.6, molesting;0.8, any;0.8, really;0.8, nice;0.8, odd;0.8, she;2.4000000000000004, weird;0.8, s;0.8, at;0.8, obsesses;0.8, much;0.8, who;0.8,
+
 
         // returns:
-        // zombie, emilymaas.jpg, forgive, wiki, for, promise, while, good, rolling, 2006, her, too, children, and, edits, katamari, http://kawaiikitcat.livejournal.com/profile, up, pigeon, a, image, though, in, was, i, is, also, livejournal, girl, molesting, any, really, nice, odd, she, weird, s, at, obsesses, much, who,
+        // zombie;1.0, emilymaas.jpg;0.8, forgive;0.8, wiki;0.8, for;1.6, promise;0.8, while;0.8, good;0.8, rolling;0.8, 2006;0.8, her;0.8, too;0.8, children;0.8, and;0.8, edits;0.8, katamari;0.8, http://kawaiikitcat.livejournal.com/profile;0.8, up;0.8, pigeon;0.8, a;2.4000000000000004, image;0.8, though;0.8, in;0.8, was;0.8, i;0.8, is;0.8, also;0.8, livejournal;0.8, girl;1.6, molesting;0.8, any;0.8, really;0.8, nice;0.8, odd;0.8, she;2.4000000000000004, weird;0.8, s;0.8, at;0.8, obsesses;0.8, much;0.8, who;0.8,
 
         for (Query q : queries) {
             PostingsList p = new PostingsList();
 
-            for (int i = 0; i < q.size(); i++) {
-                System.err.print(q.queryterm.get(i).term + ", ");
-            }
-            System.err.println("\n");
+            // for (int i = 0; i < q.size(); i++) {
+            //     System.err.print(q.queryterm.get(i).term + ";" + q.queryterm.get(i).weight  + ", ");
+            // }
+            // System.err.println("\n");
     
             switch (queryType) {
                 case INTERSECTION_QUERY:
@@ -93,10 +95,11 @@ public class Searcher {
                 continue;
             }
 
-            posts.add(p);            
+            //posts.add(p);
+            ret = merge_postingslists(ret, p);      
         }
 
-        PostingsList ret = merge_postingslists(posts);
+         
 
         if (queryType == QueryType.RANKED_QUERY) {
             ret.sortByScores();
@@ -113,40 +116,59 @@ public class Searcher {
     private ArrayList<Query> createWildcardQueries(Query query) {
         ArrayList<Query> queries = new ArrayList<Query>();
         ArrayList<ArrayList<String>> wildcards = new ArrayList<ArrayList<String>>();
-        Set<String> allTerms = new HashSet<String>();
+        HashMap<String, Double> wildcardWeights = new HashMap<String, Double>();
 
-        //Set<String> terms = new HashSet<String>(); // Terms to be added
+        // System.err.println("Number of terms in query: " + query.size());
+        // for (int i = 0; i < query.size(); i++) {
+        //     System.err.print(query.queryterm.get(i).term + ";" + query.queryterm.get(i).weight  + ", ");
+        // }
+        // System.err.println("\n");
 
         for (int i = 0; i < query.size(); i++) {
             Set<String> terms = new HashSet<String>();
             String token = query.queryterm.get(i).term;
             int idx = token.indexOf("*");
+
             if (idx < 0) {
-                if (!allTerms.contains(token)) {
+                if (wildcardWeights.containsKey(token)) {
+                    double w = wildcardWeights.get(token) + query.queryterm.get(i).weight;
+                    wildcardWeights.put(token, w);
+                } else {
                     terms.add(token);
                     wildcards.add(new ArrayList<String>(terms));
-                    allTerms.add(token);
+                    wildcardWeights.put(token, query.queryterm.get(i).weight);
                 }
                 continue;
             }
 
-            String regex_token = "^" + token.substring(0, idx) + "." + token.substring(idx)  + "$"; // Might not work because of .
+            String fullToken = "^" + token.substring(0, idx) + token.substring(idx)  + "$"; // Might not work because of .
             Set<String> k_grams = new HashSet<String>();
             for (int j = 0; j < token.length() + 3 - kgIndex.getK(); j++) { // Find all the k_grams
-                String k_gram = regex_token.substring(i, i+kgIndex.getK());
-                k_grams.add(k_gram);
+                String k_gram = fullToken.substring(j, j+kgIndex.getK());
+
+                if (k_gram.indexOf("*") < 0)
+                    k_grams.add(k_gram);
             }
 
             List<String> kg_terms = kgIndex.getPostingsIntersection(k_grams.toArray(new String[k_grams.size()])); // Get the intersection of all terms using the k_grams
             if (kg_terms == null || kg_terms.size() == 0)
                 continue;
 
+            String regex_token = "^" + token.substring(0, idx) + "." + token.substring(idx)  + "$";
             for (String term : kg_terms) {
-                if (term.matches(regex_token) && !allTerms.contains(term)) {
+                if (term.matches(regex_token)) {
                     terms.add(term);
-                    allTerms.add(term);
+                    if (wildcardWeights.containsKey(term)) {
+                        double w = wildcardWeights.get(term) + query.queryterm.get(i).weight;
+                        wildcardWeights.put(term, w);
+                    } else {
+                        wildcardWeights.put(term, query.queryterm.get(i).weight);
+                    }
                 }
             }
+            if (terms.size() == 0)
+                continue;
+                
             wildcards.add(new ArrayList<String>(terms));
         }
 
@@ -169,17 +191,8 @@ public class Searcher {
         for (ArrayList<String> qs : combinations) {
             Query q = new Query();
             for (String term : qs) {
-                Query.QueryTerm qt = query.getQueryTerm(term);
-                if (term.equals("zombie")) {
-                    System.err.println("Equals zombie..." + qt == null);
-                }
-                
-                if (qt == null) {
-                    q.appendTerm(term);
-                } else {
-                    System.err.println("Saved weight: " + qt.weight);
-                    q.appendTerm(qt);
-                }
+                //Query.QueryTerm qt = query.getQueryTerm(term);
+                q.appendTerm(term, wildcardWeights.get(term));
             }
             queries.add(q);
         }

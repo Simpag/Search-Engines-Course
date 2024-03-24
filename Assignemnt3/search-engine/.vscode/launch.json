@@ -1,0 +1,43 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Current File",
+            "request": "launch",
+            "mainClass": "${file}"
+        },
+        {
+            "type": "java",
+            "name": "Engine",
+            "request": "launch",
+            "mainClass": "ir.Engine",
+            "projectName": "search-engine_d4cb953e",
+            "args": "-d C:/Users/Simon/Documents/Github/Search-Engines-Course/Assignment1/datasets/davisWiki -l dd2477.png -p patterns.txt"
+        },
+        {
+            "type": "java",
+            "name": "HITSRanker",
+            "request": "launch",
+            "mainClass": "ir.HITSRanker",
+            "projectName": "search-engine_d4cb953e"
+        },
+        {
+            "type": "java",
+            "name": "KGramIndex",
+            "request": "launch",
+            "mainClass": "ir.KGramIndex",
+            "projectName": "search-engine_d4cb953e"
+        },
+        {
+            "type": "java",
+            "name": "TokenTest",
+            "request": "launch",
+            "mainClass": "ir.TokenTest",
+            "projectName": "search-engine_d4cb953e"
+        }
+    ]
+}

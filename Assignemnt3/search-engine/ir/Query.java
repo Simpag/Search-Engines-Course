@@ -98,17 +98,23 @@ public class Query {
     }
 
     /** Append a query term to the query */
-    public void appendTerm( String term ) {
-        if (terms_in_query.containsKey(term)) 
+    public void appendTerm( String term, double weight ) {
+        if (terms_in_query.containsKey(term)) {
+            QueryTerm qt = getQueryTerm(term);
+            qt.weight += weight;
             return;
+        }
 
-        queryterm.add( new QueryTerm(term, 1.0) );
+        queryterm.add( new QueryTerm(term, weight) );
         terms_in_query.put(term, true);
     }
 
     public void appendTerm( QueryTerm term ) {
-        if (terms_in_query.containsKey(term.term)) 
+        if (terms_in_query.containsKey(term.term)) {
+            QueryTerm qt = getQueryTerm(term.term);
+            qt.weight += term.weight;
             return;
+        }
 
         queryterm.add( term );
         terms_in_query.put(term.term, true);
@@ -193,6 +199,7 @@ public class Query {
                 } else {
                     allTerms.add(token);
                     queryterm.add( new QueryTerm(token, weight) );
+                    terms_in_query.put(token, true);
                 }
             }            
         }
