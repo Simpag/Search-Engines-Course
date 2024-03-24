@@ -54,6 +54,26 @@ public class KGramIndex {
         // 
         // YOUR CODE HERE
         //
+        if (p1 == null || p2 == null)
+            return null;
+
+        List<KGramPostingsEntry> ret = new ArrayList<KGramPostingsEntry>();
+        int i = 0, j = 0;
+        while (i < p1.size() && j < p2.size()) {
+            if (p1.get(i).tokenID == p2.get(j).tokenID) {
+                ret.add(p1.get(i)); // offset doesnt matter right now 
+                i++; j++;
+            } else if (p1.get(i).tokenID < p2.get(j).tokenID) {
+                i++;
+            } else {
+                j++;
+            }
+        }
+
+        if (ret.size() > 0) {
+            return ret;
+        }
+        
         return null;
     }
 
@@ -63,6 +83,36 @@ public class KGramIndex {
         //
         // YOUR CODE HERE
         //
+
+        if (term2id.containsKey(token))
+            return;
+
+        String fullToken = "^" + token.strip() + "$";
+        int id = generateTermID();
+        HashMap<String, Boolean> k_grams_used = new HashMap<String, Boolean>();
+
+        id2term.put(id, token);
+        term2id.put(token, id);
+        
+        KGramPostingsEntry entry = new KGramPostingsEntry(id);
+        for (int i = 0; i < token.length() + 3 - K; i++) {
+            String k_gram = fullToken.substring(i, i+K);
+
+            if (k_grams_used.containsKey(k_gram))
+                continue;
+            else
+                k_grams_used.put(k_gram, true);
+            
+            if (index.containsKey(k_gram)) {
+                List<KGramPostingsEntry> e = index.get(k_gram);
+                e.add(entry);
+                index.put(k_gram, e);
+            } else {
+                List<KGramPostingsEntry> e = new ArrayList<KGramPostingsEntry>();
+                e.add(entry);
+                index.put(k_gram, e);
+            }
+        }
     }
 
     /** Get postings for the given k-gram */
@@ -70,7 +120,7 @@ public class KGramIndex {
         //
         // YOUR CODE HERE
         //
-        return null;
+        return index.get(kgram);
     }
 
     /** Get id of a term */
@@ -81,6 +131,43 @@ public class KGramIndex {
     /** Get a term by the given id */
     public String getTermByID(Integer id) {
         return id2term.get(id);
+    }
+
+    /** Get the intersection of multiple k-grams. Returns a list of terms */
+    public List<String> getPostingsIntersection(String[] k_grams) {
+        List<String> ret = new ArrayList<String>();
+        List<KGramPostingsEntry> postings = null;
+        for (String kgram : k_grams) {
+            if (kgram.length() != K) {
+                System.err.println("Cannot search k-gram index: " + kgram.length() + "-gram provided instead of " + K + "-gram");
+                System.exit(1);
+            }
+
+            if (postings == null) {
+                postings = getPostings(kgram);
+            } else {
+                postings = intersect(postings, getPostings(kgram));
+            }
+        }
+
+        if (postings == null) {
+            //System.err.println("Found 0 posting(s)");
+            return null;
+        } else {
+            int resNum = postings.size();
+            //System.err.println("Found " + resNum + " posting(s)");
+            
+            for (int i = 0; i < resNum; i++) {
+                ret.add(getTermByID(postings.get(i).tokenID));
+            }
+
+            return ret;
+        }
+    }
+
+    public List<String> getPostingsIntersection(ArrayList<String> k_grams) {
+        String[] r = k_grams.toArray(new String[k_grams.size()]);
+        return getPostingsIntersection(r);
     }
 
     private static HashMap<String,String> decodeArgs( String[] args ) {
@@ -153,7 +240,7 @@ public class KGramIndex {
                 resNum = 10;
             }
             for (int i = 0; i < resNum; i++) {
-                System.err.println(kgIndex.getTermByID(postings.get(i).tokenID));
+                System.err.println(kgIndex.getTermByID(postings.get(i).tokenID) + "; " + postings.get(i).tokenID);
             }
         }
     }

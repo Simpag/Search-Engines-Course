@@ -9,6 +9,7 @@ package ir;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.StringTokenizer;
 import java.util.Iterator;
@@ -40,13 +41,14 @@ public class Query {
      *  In assignments 1 and 2, the weight of each term will always be 1.
      */
     public ArrayList<QueryTerm> queryterm = new ArrayList<QueryTerm>();
+    private HashMap<String, Boolean> terms_in_query = new HashMap<String,Boolean>();
 
     /**  
      *  Relevance feedback constant alpha (= weight of original query terms). 
      *  Should be between 0 and 1.
      *  (only used in assignment 3).
      */
-    double alpha = 0.99;
+    double alpha = 0.2;
 
     /**  
      *  Relevance feedback constant beta (= weight of query terms obtained by
@@ -69,7 +71,9 @@ public class Query {
     public Query( String queryString  ) {
         StringTokenizer tok = new StringTokenizer( queryString );
         while ( tok.hasMoreTokens() ) {
-            queryterm.add( new QueryTerm(tok.nextToken(), 1.0) );
+            String token = tok.nextToken();
+            queryterm.add( new QueryTerm(token, 1.0) );
+            terms_in_query.put(token, true);
         }    
     }
     
@@ -91,6 +95,44 @@ public class Query {
             len += t.weight; 
         }
         return len;
+    }
+
+    /** Append a query term to the query */
+    public void appendTerm( String term ) {
+        if (terms_in_query.containsKey(term)) 
+            return;
+
+        queryterm.add( new QueryTerm(term, 1.0) );
+        terms_in_query.put(term, true);
+    }
+
+    public void appendTerm( QueryTerm term ) {
+        if (terms_in_query.containsKey(term.term)) 
+            return;
+
+        queryterm.add( term );
+        terms_in_query.put(term.term, true);
+    }
+
+    public void removeTerm( String term ) {
+        if (!terms_in_query.containsKey(term))
+            return;
+
+        terms_in_query.remove(term);
+        for (int i = 0; i < queryterm.size(); i++) {
+            if (queryterm.get(i).term.equals(term)) {
+                queryterm.remove(i);
+                return;
+            }
+        }
+    }
+
+    public QueryTerm getQueryTerm( String term ) {
+        if (!terms_in_query.containsKey(term))
+            return null;
+
+        int idx = findIndexOfTerm(term);
+        return queryterm.get(idx);
     }
     
     

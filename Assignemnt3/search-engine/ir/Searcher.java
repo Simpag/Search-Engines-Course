@@ -11,8 +11,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.stream.Collectors;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.lang.Math;
 
 /**
@@ -44,27 +52,165 @@ public class Searcher {
         //
         //  REPLACE THE STATEMENT BELOW WITH YOUR CODE
         // 
-        PostingsList ret = null;
+        ArrayList<PostingsList> posts = new ArrayList<PostingsList>();
+        ArrayList<Query> queries = createWildcardQueries(query);
+        //ArrayList<Query> queries = new ArrayList<>();
+        //queries.add(query);
 
-        switch (queryType) {
-            case INTERSECTION_QUERY:
-                ret = intersection_query(query);
-                break;
+        // zombie should return:::
+        // zombie, emilymaas.jpg, forgive, wiki, for, promise, while, good, rolling, 2006, her, too, children, and, edits, katamari, http://kawaiikitcat.livejournal.com/profile, up, pigeon, a, image, though, in, was, i, is, also, livejournal, girl, molesting, any, really, nice, odd, she, weird, s, at, obsesses, much, who,
 
-            case PHRASE_QUERY:
-                ret = phrase_query(query);
-                break;
+        // returns:
+        // zombie, emilymaas.jpg, forgive, wiki, for, promise, while, good, rolling, 2006, her, too, children, and, edits, katamari, http://kawaiikitcat.livejournal.com/profile, up, pigeon, a, image, though, in, was, i, is, also, livejournal, girl, molesting, any, really, nice, odd, she, weird, s, at, obsesses, much, who,
 
-            case RANKED_QUERY:
-                ret = ranked_query(query, rankingType, normType, ratio);
-                break;
-        
-            default:
-                System.err.println("Some error occured in Searcher.java (wrong QueryType)");
-                break;
+        for (Query q : queries) {
+            PostingsList p = new PostingsList();
+
+            for (int i = 0; i < q.size(); i++) {
+                System.err.print(q.queryterm.get(i).term + ", ");
+            }
+            System.err.println("\n");
+    
+            switch (queryType) {
+                case INTERSECTION_QUERY:
+                    p = intersection_query(q);
+                    break;
+    
+                case PHRASE_QUERY:
+                    p = phrase_query(q);
+                    break;
+    
+                case RANKED_QUERY:
+                    p = ranked_query(q, rankingType, normType, ratio);
+                    break;
+            
+                default:
+                    System.err.println("Some error occured in Searcher.java (wrong QueryType)");
+                    break;
+            }
+            
+            if (p == null) {
+                continue;
+            }
+
+            posts.add(p);            
+        }
+
+        PostingsList ret = merge_postingslists(posts);
+
+        if (queryType == QueryType.RANKED_QUERY) {
+            ret.sortByScores();
         }
         
         return ret;
+    }
+
+    /*
+     * Wildcard queries:
+     * 
+     */
+
+    private ArrayList<Query> createWildcardQueries(Query query) {
+        ArrayList<Query> queries = new ArrayList<Query>();
+        ArrayList<ArrayList<String>> wildcards = new ArrayList<ArrayList<String>>();
+        Set<String> allTerms = new HashSet<String>();
+
+        //Set<String> terms = new HashSet<String>(); // Terms to be added
+
+        for (int i = 0; i < query.size(); i++) {
+            Set<String> terms = new HashSet<String>();
+            String token = query.queryterm.get(i).term;
+            int idx = token.indexOf("*");
+            if (idx < 0) {
+                if (!allTerms.contains(token)) {
+                    terms.add(token);
+                    wildcards.add(new ArrayList<String>(terms));
+                    allTerms.add(token);
+                }
+                continue;
+            }
+
+            String regex_token = "^" + token.substring(0, idx) + "." + token.substring(idx)  + "$"; // Might not work because of .
+            Set<String> k_grams = new HashSet<String>();
+            for (int j = 0; j < token.length() + 3 - kgIndex.getK(); j++) { // Find all the k_grams
+                String k_gram = regex_token.substring(i, i+kgIndex.getK());
+                k_grams.add(k_gram);
+            }
+
+            List<String> kg_terms = kgIndex.getPostingsIntersection(k_grams.toArray(new String[k_grams.size()])); // Get the intersection of all terms using the k_grams
+            if (kg_terms == null || kg_terms.size() == 0)
+                continue;
+
+            for (String term : kg_terms) {
+                if (term.matches(regex_token) && !allTerms.contains(term)) {
+                    terms.add(term);
+                    allTerms.add(term);
+                }
+            }
+            wildcards.add(new ArrayList<String>(terms));
+        }
+
+        // Construct all the queries
+
+        /* mo*y transfer
+         * 
+         * 0 : money, monkey, moosey
+         * 1 : transfer
+         */
+
+         /* b* colo*r
+         * 
+         * 0 : be, been, bat
+         * 1 : color, colour
+         */
+        ArrayList<ArrayList<String>> combinations = new ArrayList<>();
+        combine(wildcards, new ArrayList<>(), combinations, 0);
+        
+        for (ArrayList<String> qs : combinations) {
+            Query q = new Query();
+            for (String term : qs) {
+                Query.QueryTerm qt = query.getQueryTerm(term);
+                if (term.equals("zombie")) {
+                    System.err.println("Equals zombie..." + qt == null);
+                }
+                
+                if (qt == null) {
+                    q.appendTerm(term);
+                } else {
+                    System.err.println("Saved weight: " + qt.weight);
+                    q.appendTerm(qt);
+                }
+            }
+            queries.add(q);
+        }
+
+        /*for (ArrayList<String> q : combinations) {
+            String s = "";
+            for (String term : q) {
+                s += term + " ";
+            }
+            queries.add(new Query(s));
+        }*/
+
+        return queries;
+    }
+
+    
+    private static void combine(ArrayList<ArrayList<String>> listOfLists, ArrayList<String> current, ArrayList<ArrayList<String>> combinations, int index) {
+        if (current.size() == listOfLists.size()) { // Check if current combination has the desired length
+            combinations.add(new ArrayList<>(current)); // Add a copy to avoid modification
+            return;
+        }
+
+        if (index == listOfLists.size()) {
+            return; // Don't proceed if index reaches the end before reaching desired length
+        }
+
+        for (String element : listOfLists.get(index)) {
+            current.add(element);
+            combine(listOfLists, current, combinations, index + 1);
+            current.remove(current.size() - 1); // Backtrack by removing the element
+        }
     }
 
     private PostingsList ranked_query(Query query, RankingType rankingType, NormalizationType normType, double ratio) {
@@ -100,11 +246,25 @@ public class Searcher {
                 break;
         }
 
+        PostingsList res = merge_postingslists(terms);
+
+        // for (int i = 0; i < 50; i++) {
+        //     System.err.println("1 " + getFileName(Index.docNames.get(res.get(i).docID)));
+        // }
+
+        //nDCG(50, res);
+
+        return res;
+    }
+
+    private PostingsList merge_postingslists(ArrayList<PostingsList> lists) {
         long startTime = System.currentTimeMillis();
 
+        if (lists == null)
+            return null;
 
         // merge
-        Iterator<PostingsList> piter = terms.iterator();
+        Iterator<PostingsList> piter = lists.iterator();
         PostingsList res;
         if (piter.hasNext())
             res = piter.next();
@@ -139,13 +299,66 @@ public class Searcher {
         // long elapsedTime = System.currentTimeMillis() - startTime;
         // System.err.println("Merge took: " + elapsedTime + " ms");
 
-        res.sortByScores();
-
-        // for (int i = 0; i < 50; i++) {
-        //     System.err.println("1 " + getFileName(Index.docNames.get(res.get(i).docID)));
-        // }
-
         return res;
+    }
+
+    private void nDCG(int k, PostingsList list) {
+        if (list.size() < k) {
+            System.err.println("Number of returned documents is less than k=" + k +", retrieved: " + list.size() + " documents");
+            return;
+        }
+
+        HashMap<String, Integer> ratings = new HashMap<String, Integer>();
+        ArrayList<Integer> sortedRatings = new ArrayList<Integer>();
+        File f = new File("assignment3/average_relevance_filtered.txt");
+        
+        if (!f.exists()) {
+            System.err.println("average_relevance_filtered.txt file!");
+            return;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] data = line.strip().split(" ");
+                ratings.put(data[0], Integer.parseInt(data[1]));
+                sortedRatings.add(Integer.parseInt(data[1]));
+            }
+        } catch ( IOException e ) {
+            e.printStackTrace();
+        }
+        sortedRatings.sort((o1, o2) -> Integer.compare(o2, o1));
+
+        String missingDocs = "";
+        double DCG = 0.0;
+        double iDCG = 0.0;
+        for (int i = 0; i < k; i++) {
+            String docName = getFileName(Index.docNames.get(list.get(i).docID));
+
+            if (docName.equals("Mathematics.f")) {
+                System.err.println("Skipping: " + docName);
+                continue;
+            }
+
+            assert ratings.containsKey(docName) : "Ratings does not cotain document: " + docName;
+            if (!ratings.containsKey(docName)) {
+                missingDocs += docName + ", ";
+                continue;
+            }
+            double rel_i = ratings.get(docName);
+            double denom = Math.log(i+2) / Math.log(2.0);
+            DCG += rel_i / denom;
+
+            rel_i = sortedRatings.get(i);
+            iDCG += rel_i / denom;
+        }
+
+        double nDCG = DCG / iDCG;
+
+        if (!missingDocs.equals(""))
+            System.err.println("No ratings exsists for documents: " + missingDocs);
+
+        System.err.println("nDCG at " + k + " is: " + nDCG);
     }
 
     private ArrayList<PostingsList> calculate_tf_idf(Query query, NormalizationType normType) {

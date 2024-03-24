@@ -626,19 +626,19 @@ public class PersistentHashedIndex implements Index {
     public void cleanup() {
         System.err.println( index.keySet().size() + " unique words" );
         System.err.print( "Writing index to disk..." );
-        writeIndex(true);
+        System.err.print(" Disabled writing to index... ");
+        //writeIndex(true);
         try {
-            createEucLen();
-            readEucLen();
+            System.err.println("Euclidean len is disabled!");
+            //createEucLen();
+            //readEucLen();
             dataFile.getChannel().force(false);;
             dictionaryFile.getChannel().force(false);
             readDictionaryFile.getChannel().force(false);
-            //readDictionaryFile.close();
-            //dictionaryFile.close();
-            //dataFile.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
+        index.clear();
         System.err.println( "done!" );
     }
 

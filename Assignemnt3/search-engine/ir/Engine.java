@@ -8,6 +8,7 @@
 package ir;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.io.File;
 
 /**
@@ -27,9 +28,9 @@ public class Engine {
     Searcher searcher;
 
     /** K-gram index */
-    KGramIndex kgIndex = null;
+    //KGramIndex kgIndex = null;
     // Assignment 3: Comment the line above and uncomment the next line
-    // KgramIndex kgIndex = new KGramIndex(2);
+    KGramIndex kgIndex = new KGramIndex(2);
 
     /** Spell checker */
     SpellChecker speller;
@@ -87,6 +88,7 @@ public class Engine {
                 }
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 gui.displayInfoText( String.format( "Indexing done in %.1f seconds.", elapsedTime/1000.0 ));
+                printKGrams();
                 index.cleanup();
             }
         } else {
@@ -131,6 +133,19 @@ public class Engine {
                 break;
             }
         }                   
+    }
+
+
+    private void printKGrams() {
+        if (kgIndex == null) 
+            return;
+
+        String[] ve = new String[] {"ve"};
+        String[] th_he = new String[] {"th", "he"};
+        List<String> ve_list = kgIndex.getPostingsIntersection(ve);
+        List<String> th_he_list = kgIndex.getPostingsIntersection(th_he);
+
+        System.err.println("Number of words that contain \"ve\": " + ve_list.size() + "\nNumber of words that contain \"th\" and \"he\": " + th_he_list.size());
     }
 
 
