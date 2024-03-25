@@ -140,6 +140,10 @@ public class Query {
         int idx = findIndexOfTerm(term);
         return queryterm.get(idx);
     }
+
+    public boolean containsTerm( String term ) {
+        return terms_in_query.containsKey(term);
+    }
     
     
     /**

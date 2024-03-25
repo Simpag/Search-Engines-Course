@@ -42,6 +42,13 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
         this.offset.add(offset);
     }
 
+    public PostingsEntry(int docID, double score, ArrayList<Integer> offsets) {
+        this.docID = docID;
+        this.score = score;
+        this.offset.addAll(offsets);
+        this.offset.sort((o1, o2) -> Integer.compare(o1, o2));
+    }
+
     public String serialize()
     {
         // Returns docID,score,#offsets,offsets

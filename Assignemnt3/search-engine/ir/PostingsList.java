@@ -53,7 +53,6 @@ public class PostingsList {
         return list.iterator();
     }
 
-    //private PostingsEntry last_entry = new PostingsEntry(-1, 0, 0);
     public void insert(int docID, double score, int offset) {
         PostingsEntry p;
         if (docIDMapping.containsKey(docID)) {
@@ -64,17 +63,20 @@ public class PostingsList {
             p = new PostingsEntry(docID, score, offset);
             list.add(p);
         }
-        
-        /*PostingsEntry p;
-        if (docID == last_entry.docID) { // if the docID for this token already exists
-            p = last_entry;
-            p.offset.add(offset); // just add the new offset (where the token appears)
+    }
+
+    public void insert(int docID, double score, ArrayList<Integer> offsets) {
+        PostingsEntry p;
+        if (docIDMapping.containsKey(docID)) {
+            p = list.get(docIDMapping.get(docID));
+            p.score += score;
+            p.offset.addAll(offsets);
+            p.offset.sort((o1, o2) -> Integer.compare(o1, o2));
         } else {
-            p = new PostingsEntry(docID, score, offset);
+            docIDMapping.put(docID, list.size());
+            p = new PostingsEntry(docID, score, offsets);
             list.add(p);
         }
-
-        last_entry = p;*/
     }
 
     public String serialize(String token)
@@ -111,10 +113,20 @@ public class PostingsList {
 
     public void sortByScores() {
         list.sort((o1, o2) -> Double.compare(o2.score, o1.score));
+
+        docIDMapping.clear();
+        for (int i = 0; i < list.size(); i++) {
+            docIDMapping.put(list.get(i).docID, i);
+        }
     }
 
     public void sortByDocID() {
         list.sort((o1, o2) -> Double.compare(o1.docID, o2.docID));
+
+        docIDMapping.clear();
+        for (int i = 0; i < list.size(); i++) {
+            docIDMapping.put(list.get(i).docID, i);
+        }
     }
 
     public void resetScores() {
@@ -132,6 +144,15 @@ public class PostingsList {
             if (e.docID == docID)
                 e.score += score;
         }*/
+    }
+
+    public void addOffsets(int docID, ArrayList<Integer> offsets) {
+        if (docIDMapping.containsKey(docID)) {
+            PostingsEntry p;
+            p = list.get(docIDMapping.get(docID));
+            p.offset.addAll(offsets);
+            p.offset.sort((o1, o2) -> Integer.compare(o1, o2));
+        }
     }
 
     public boolean containsDocID(int docID) {

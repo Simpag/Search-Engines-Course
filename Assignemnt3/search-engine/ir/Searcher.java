@@ -52,60 +52,72 @@ public class Searcher {
         //
         //  REPLACE THE STATEMENT BELOW WITH YOUR CODE
         // 
-        PostingsList ret = null;
-        //ArrayList<PostingsList> posts = new ArrayList<PostingsList>();
-        ArrayList<Query> queries = createWildcardQueries(query);
-        //ArrayList<Query> queries = new ArrayList<>();
-        //queries.add(query);
+        WildCards queryWildcards = createWildcardQueries(query);
 
-        // zombie should return:::
         // zombie;1.0, emilymaas.jpg;0.8, forgive;0.8, wiki;0.8, for;1.6, promise;0.8, while;0.8, good;0.8, rolling;0.8, 2006;0.8, her;0.8, too;0.8, children;0.8, and;0.8, edits;0.8, katamari;0.8, http://kawaiikitcat.livejournal.com/profile;0.8, up;0.8, pigeon;0.8, a;2.4000000000000004, image;0.8, though;0.8, in;0.8, was;0.8, i;0.8, is;0.8, also;0.8, livejournal;0.8, girl;1.6, molesting;0.8, any;0.8, really;0.8, nice;0.8, odd;0.8, she;2.4000000000000004, weird;0.8, s;0.8, at;0.8, obsesses;0.8, much;0.8, who;0.8,
 
-
-        // returns:
+        // gets:
         // zombie;1.0, emilymaas.jpg;0.8, forgive;0.8, wiki;0.8, for;1.6, promise;0.8, while;0.8, good;0.8, rolling;0.8, 2006;0.8, her;0.8, too;0.8, children;0.8, and;0.8, edits;0.8, katamari;0.8, http://kawaiikitcat.livejournal.com/profile;0.8, up;0.8, pigeon;0.8, a;2.4000000000000004, image;0.8, though;0.8, in;0.8, was;0.8, i;0.8, is;0.8, also;0.8, livejournal;0.8, girl;1.6, molesting;0.8, any;0.8, really;0.8, nice;0.8, odd;0.8, she;2.4000000000000004, weird;0.8, s;0.8, at;0.8, obsesses;0.8, much;0.8, who;0.8,
-
-        for (Query q : queries) {
-            PostingsList p = new PostingsList();
-
-            // for (int i = 0; i < q.size(); i++) {
-            //     System.err.print(q.queryterm.get(i).term + ";" + q.queryterm.get(i).weight  + ", ");
-            // }
-            // System.err.println("\n");
-    
-            switch (queryType) {
-                case INTERSECTION_QUERY:
-                    p = intersection_query(q);
-                    break;
-    
-                case PHRASE_QUERY:
-                    p = phrase_query(q);
-                    break;
-    
-                case RANKED_QUERY:
-                    p = ranked_query(q, rankingType, normType, ratio);
-                    break;
-            
-                default:
-                    System.err.println("Some error occured in Searcher.java (wrong QueryType)");
-                    break;
-            }
-            
-            if (p == null) {
-                continue;
-            }
-
-            //posts.add(p);
-            ret = merge_postingslists(ret, p);      
+        for (int i = 0; i < queryWildcards.wildcards.size(); i++) {
+            System.err.print(queryWildcards.wildcards.get(i) + ";" + queryWildcards.wildcardWeights.get(i)  + ", ");
         }
+        System.err.println("\n");
 
-         
+        System.err.println("WC: " + queryWildcards.wildcards.size() + " W: " + queryWildcards.wildcardWeights.size());
 
+        long startTime = System.currentTimeMillis();
+
+        // for (int i = 0; i < q.size(); i++) {
+        //     System.err.print(q.queryterm.get(i).term + ";" + q.queryterm.get(i).weight  + ", ");
+        // }
+        // System.err.println("\n");
+        
+        PostingsList ret = null;
+        ArrayList<PostingsList> tokens = null;
+        switch (queryType) {
+            case INTERSECTION_QUERY:
+                tokens = get_tokens(queryWildcards.wildcards);
+                ret = intersection_query(tokens);
+                break;
+
+            case PHRASE_QUERY:
+                tokens = get_tokens(queryWildcards.wildcards);
+                ret = phrase_query(tokens);
+                break;
+
+            case RANKED_QUERY:
+                ret = ranked_query(queryWildcards.wildcards, queryWildcards.wildcardWeights, rankingType, normType, ratio);
+                break;
+        
+            default:
+                System.err.println("Some error occured in Searcher.java (wrong QueryType)");
+                break;
+        }
+        
+        if (ret == null)
+            return null;
+
+        long elapsedTime = System.currentTimeMillis() - startTime;
+        System.err.println("Running queries took: " + elapsedTime + " ms");
+        
         if (queryType == QueryType.RANKED_QUERY) {
             ret.sortByScores();
         }
-        
+
         return ret;
+    }
+
+    private ArrayList<PostingsList> get_tokens(ArrayList<String> wildcards) {
+        ArrayList<PostingsList> tokens = new ArrayList<PostingsList>();
+        for (int i = 0; i < wildcards.size(); i++) {
+            String terms = wildcards.get(i);
+            Query q = new Query(terms);
+            ArrayList<PostingsList> a = union_search(q);
+            PostingsList p = merge_postingslists(a);
+            tokens.add(p);
+        }
+
+        return tokens;
     }
 
     /*
@@ -113,10 +125,23 @@ public class Searcher {
      * 
      */
 
-    private ArrayList<Query> createWildcardQueries(Query query) {
+    private class WildCards {
+        public ArrayList<String> wildcards;
+        public ArrayList<Double> wildcardWeights;
+
+        public WildCards(ArrayList<String> wc, ArrayList<Double> w) {
+            wildcards = wc;
+            wildcardWeights = w;
+        }
+    }
+    private WildCards createWildcardQueries(Query query) {
+        long startTime = System.currentTimeMillis();
+
         ArrayList<Query> queries = new ArrayList<Query>();
-        ArrayList<ArrayList<String>> wildcards = new ArrayList<ArrayList<String>>();
+        ArrayList<String> wildcards = new ArrayList<String>();
         HashMap<String, Double> wildcardWeights = new HashMap<String, Double>();
+        ArrayList<Double> weights = new ArrayList<Double>();
+        Set<String> allTerms = new HashSet<String>();
 
         // System.err.println("Number of terms in query: " + query.size());
         // for (int i = 0; i < query.size(); i++) {
@@ -125,18 +150,20 @@ public class Searcher {
         // System.err.println("\n");
 
         for (int i = 0; i < query.size(); i++) {
-            Set<String> terms = new HashSet<String>();
+            String terms = "";
             String token = query.queryterm.get(i).term;
             int idx = token.indexOf("*");
+            boolean add_term = false;
 
+            if (!allTerms.contains(token)) {
+                weights.add(query.queryterm.get(i).weight);
+                add_term = true;
+            }
+            
             if (idx < 0) {
-                if (wildcardWeights.containsKey(token)) {
-                    double w = wildcardWeights.get(token) + query.queryterm.get(i).weight;
-                    wildcardWeights.put(token, w);
-                } else {
-                    terms.add(token);
-                    wildcards.add(new ArrayList<String>(terms));
-                    wildcardWeights.put(token, query.queryterm.get(i).weight);
+                if (add_term) {
+                    wildcards.add(token);
+                    allTerms.add(token);
                 }
                 continue;
             }
@@ -157,34 +184,24 @@ public class Searcher {
             String regex_token = "^" + token.substring(0, idx) + "." + token.substring(idx)  + "$";
             for (String term : kg_terms) {
                 if (term.matches(regex_token)) {
-                    terms.add(term);
-                    if (wildcardWeights.containsKey(term)) {
-                        double w = wildcardWeights.get(term) + query.queryterm.get(i).weight;
-                        wildcardWeights.put(term, w);
-                    } else {
-                        wildcardWeights.put(term, query.queryterm.get(i).weight);
+                    terms += term + " ";
+
+                    if (query.containsTerm(term)) {
+                        weights.set(weights.size()-1, weights.get(weights.size()-1) + query.getQueryTerm(term).weight);
                     }
+                    allTerms.add(term);
                 }
             }
-            if (terms.size() == 0)
+            if (terms.length() == 0)
                 continue;
                 
-            wildcards.add(new ArrayList<String>(terms));
+            wildcards.add(terms.strip());
         }
 
+        return new WildCards(wildcards, weights);
+
         // Construct all the queries
-
-        /* mo*y transfer
-         * 
-         * 0 : money, monkey, moosey
-         * 1 : transfer
-         */
-
-         /* b* colo*r
-         * 
-         * 0 : be, been, bat
-         * 1 : color, colour
-         */
+        /*
         ArrayList<ArrayList<String>> combinations = new ArrayList<>();
         combine(wildcards, new ArrayList<>(), combinations, 0);
         
@@ -197,15 +214,10 @@ public class Searcher {
             queries.add(q);
         }
 
-        /*for (ArrayList<String> q : combinations) {
-            String s = "";
-            for (String term : q) {
-                s += term + " ";
-            }
-            queries.add(new Query(s));
-        }*/
+        long elapsedTime = System.currentTimeMillis() - startTime;
+        System.err.println("Wildcard queries took: " + elapsedTime + " ms");
 
-        return queries;
+        return queries; */
     }
 
     
@@ -226,31 +238,57 @@ public class Searcher {
         }
     }
 
-    private PostingsList ranked_query(Query query, RankingType rankingType, NormalizationType normType, double ratio) {
-        ArrayList<PostingsList> terms = new ArrayList<PostingsList>();
+    private ArrayList<PostingsList> union_search(Query query) {
+        ArrayList<PostingsList> tokens = new ArrayList<PostingsList>();
+        PostingsList p;
         for (int i = 0, size = query.size(); i < size; i++)
         {
             String token = query.queryterm.get(i).term;
-            PostingsList p = index.getPostings(token);
-            if (p == null) 
+            p = index.getPostings(token);
+            if (p == null)
                 continue;
-            terms.add(p);
+                
+            tokens.add(p);
         }
 
+        return tokens;
+    }
+
+    private ArrayList<PostingsList> intersection_search(Query query) {
+        ArrayList<PostingsList> tokens = new ArrayList<PostingsList>();
+        PostingsList p;
+        for (int i = 0, size = query.size(); i < size; i++)
+        {
+            String token = query.queryterm.get(i).term;
+            p = index.getPostings(token);
+            if (p == null)
+                return null;
+                
+            tokens.add(p);
+        }
+
+        return tokens;
+    }
+
+    private PostingsList ranked_query(ArrayList<String> wildcards, ArrayList<Double> weights, RankingType rankingType, NormalizationType normType, double ratio) {
+        ArrayList<PostingsList> terms = null;
         switch (rankingType) {
             case TF_IDF:
-                terms = calculate_tf_idf(query, normType);       
+                terms = calculate_tf_idf(wildcards, weights, normType);       
                 break;
 
             case PAGERANK:
+                terms = get_tokens(wildcards);
                 calculate_page_ranking(terms);       
                 break;
 
             case COMBINATION:
+                terms = get_tokens(wildcards);
                 calculate_combined_ranking(terms, normType, ratio);       
                 break;
 
             case HITS:
+                terms = get_tokens(wildcards);
                 calculate_hits_ranking(terms, ratio);
                 break;
         
@@ -277,40 +315,40 @@ public class Searcher {
             return null;
 
         // merge
-        Iterator<PostingsList> piter = lists.iterator();
-        PostingsList res;
-        if (piter.hasNext())
-            res = piter.next();
-        else
-            return null;
 
-        while (piter.hasNext()) {
-            Iterator<PostingsEntry> eiter = piter.next().iterator();
-            PostingsEntry e;
-            while (eiter.hasNext()) {
-                e = eiter.next();
-                if (res.containsDocID(e.docID)) {
-                    res.addScore(e.docID, e.score);
-                } else {
-                    res.insert(e.docID, e.score, 0);
-                    //res.sortByDocID();
-                }
+
+
+        // Iterator<PostingsList> piter = lists.iterator();
+        // PostingsList res;
+        // if (piter.hasNext())
+        //     res = piter.next();
+        // else
+        //     return null;
+
+        // while (piter.hasNext()) {
+        //     Iterator<PostingsEntry> eiter = piter.next().iterator();
+        //     PostingsEntry e;
+        //     while (eiter.hasNext()) {
+        //         e = eiter.next();
+        //         if (res.containsDocID(e.docID)) {
+        //             res.addScore(e.docID, e.score);
+        //             res.addOffsets(e.docID, e.offset);
+        //         } else {
+        //             res.insert(e.docID, e.score, e.offset);
+        //             //res.sortByDocID();
+        //         }
+        //     }
+        // }
+
+        PostingsList res = new PostingsList();
+        for (PostingsList p : lists) {
+            for (int j = 0; j < p.size(); j++) {
+                res.insert(p.get(j).docID, p.get(j).score, p.get(j).offset);
             }
         }
 
-        /*PostingsList res = new PostingsList();
-        for (PostingsList p : terms) {
-            for (int j = 0; j < p.size(); j++) {
-                if (res.containsDocID(p.get(j).docID)) {
-                    res.addScore(p.get(j).docID, p.get(j).score);
-                } else {
-                    res.insert(p.get(j).docID, p.get(j).score, 0);
-                }
-            }
-        }*/
-
-        // long elapsedTime = System.currentTimeMillis() - startTime;
-        // System.err.println("Merge took: " + elapsedTime + " ms");
+        long elapsedTime = System.currentTimeMillis() - startTime;
+        System.err.println("Merge took: " + elapsedTime + " ms");
 
         return res;
     }
@@ -374,41 +412,47 @@ public class Searcher {
         System.err.println("nDCG at " + k + " is: " + nDCG);
     }
 
-    private ArrayList<PostingsList> calculate_tf_idf(Query query, NormalizationType normType) {
+    private ArrayList<PostingsList> calculate_tf_idf(ArrayList<String> wildcards, ArrayList<Double> weights, NormalizationType normType) {
         long startTime = System.currentTimeMillis();
 
-        ArrayList<PostingsList> terms = new ArrayList<PostingsList>();
-        for (int i = 0, size = query.size(); i < size; i++) {
-            String token = query.queryterm.get(i).term;
-            Double weight = query.queryterm.get(i).weight;
-            PostingsList p = index.getPostings(token);
-            if (p == null) 
-                continue;
-            double df_t = p.size();
-            double idf_t = Math.log((double)index.corpusSize()/df_t);
+        ArrayList<PostingsList> res = new ArrayList<PostingsList>();
+        for (int i = 0; i < wildcards.size(); i++) {
+            String token = wildcards.get(i);
+            Double weight = weights.get(i);
+            Query q = new Query(token);
+            ArrayList<PostingsList> a = union_search(q);
 
-            for (int d = 0; d < p.size(); d++) {
-                PostingsEntry entry = p.get(d);
-                double tf_dt = entry.offset.size() * weight;
-                
-                double norm = -1;
-
-                if (normType == NormalizationType.NUMBER_OF_WORDS)
-                    norm = (double)Index.docLengths.get(entry.docID);
-                else if (normType == NormalizationType.EUCLIDEAN)
-                    norm = Index.euclidianLength.get(getFileName(Index.docNames.get(entry.docID)));
-
-                double tf_idf_t = (tf_dt * idf_t) / norm;
-
-                entry.score = tf_idf_t;
+            for (PostingsList p : a) {
+                //PostingsList p = index.getPostings(token);
+                if (p == null) 
+                    continue;
+                double df_t = p.size();
+                //double idf_t = Math.log((double)index.corpusSize()/df_t);
+                double idf_t = Math.log((double)index.corpusSize()) - Math.log(df_t);
+    
+                for (int d = 0; d < p.size(); d++) {
+                    PostingsEntry entry = p.get(d);
+                    double tf_dt = entry.offset.size() * weight;
+                    
+                    double norm = -1;
+    
+                    if (normType == NormalizationType.NUMBER_OF_WORDS)
+                        norm = (double)Index.docLengths.get(entry.docID);
+                    else if (normType == NormalizationType.EUCLIDEAN)
+                        norm = Index.euclidianLength.get(getFileName(Index.docNames.get(entry.docID)));
+    
+                    double tf_idf_t = (tf_dt * idf_t) / norm;
+    
+                    entry.score = tf_idf_t;
+                }
             }
-            terms.add(p);
+            res.add(merge_postingslists(a));
         }
 
-        // long elapsedTime = System.currentTimeMillis() - startTime;
-        // System.err.println("TF_IDFS took: " + elapsedTime + " ms");
+        long elapsedTime = System.currentTimeMillis() - startTime;
+        System.err.println("TF_IDFS took: " + elapsedTime + " ms");
 
-        return terms;
+        return res;
     }
 
     private void calculate_page_ranking(ArrayList<PostingsList> list) {
@@ -483,47 +527,48 @@ public class Searcher {
     }
 
 
-    private PostingsList phrase_query(Query query) {
-        ArrayList<PostingsList> tokens = new ArrayList<PostingsList>();
-        for (int i = 0, size = query.size(); i < size; i++)
-        {
-            String token = query.queryterm.get(i).term;
-            tokens.add(index.getPostings(token));
-        }
+    private PostingsList phrase_query(ArrayList<PostingsList> tokens) {
+        //Collections.sort(tokens, Comparator.comparingInt(PostingsList::size)); // sort the list in acending order
 
         Iterator<PostingsList> iter = tokens.iterator();
         PostingsList res = iter.next();
+        res.sortByDocID();
 
+        PostingsList p = null;
         while (iter.hasNext() && res != null) {
-            res = positional_intersection(res, iter.next());
+            p = iter.next();
+            p.sortByDocID();
+            res = positional_intersection(res, p);
+        }
+
+        return res;
+    }
+
+    private PostingsList phrase_query(Query query) {
+        ArrayList<PostingsList> tokens = intersection_search(query);
+        return phrase_query(tokens);
+    }
+
+    private PostingsList intersection_query(ArrayList<PostingsList> tokens) {
+        Collections.sort(tokens, Comparator.comparingInt(PostingsList::size)); // sort the list in acending order
+
+        Iterator<PostingsList> iter = tokens.iterator();
+        PostingsList res = iter.next();
+        res.sortByDocID();
+
+        PostingsList p = null;
+        while (iter.hasNext() && res != null) {
+            p = iter.next();
+            p.sortByDocID();
+            res = intersection(res, p);
         }
 
         return res;
     }
 
     private PostingsList intersection_query(Query query) {
-        ArrayList<PostingsList> tokens = new ArrayList<PostingsList>();
-        PostingsList p;
-        for (int i = 0, size = query.size(); i < size; i++)
-        {
-            String token = query.queryterm.get(i).term;
-            p = index.getPostings(token);
-            if (p == null) {
-                return null;
-            }
-            tokens.add(p);
-        }
-        Collections.sort(tokens, Comparator.comparingInt(PostingsList::size)); // sort the list in acending order
-
-        PostingsList res = tokens.get(0);
-        Iterator<PostingsList> iter = tokens.iterator();
-        iter.next(); // skip 0
-
-        while (iter.hasNext() && res != null) {
-            res = intersection(res, iter.next());
-        }
-
-        return res;
+        ArrayList<PostingsList> tokens = intersection_search(query);
+        return intersection_query(tokens);
     }
 
     private PostingsList positional_intersection(PostingsList p1, PostingsList p2) {
