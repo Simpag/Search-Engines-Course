@@ -186,12 +186,13 @@ public class Searcher {
                 if (term.matches(regex_token)) {
                     terms += term + " ";
 
-                    if (query.containsTerm(term)) {
+                    if (query.containsTerm(term) && !allTerms.contains(term)) {
                         weights.set(weights.size()-1, weights.get(weights.size()-1) + query.getQueryTerm(term).weight);
                     }
                     allTerms.add(term);
                 }
             }
+
             if (terms.length() == 0)
                 continue;
                 

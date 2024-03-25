@@ -180,6 +180,9 @@ public class Query {
             }
         }
 
+        if (num_relevant == 0)
+            return;
+
         for (QueryTerm qt : queryterm) {
             qt.weight *= alpha;
             allTerms.add(qt.term);
