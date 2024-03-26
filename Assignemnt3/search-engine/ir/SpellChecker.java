@@ -91,39 +91,40 @@ public class SpellChecker {
         //
         // YOUR CODE HERE
         //
-        if (s2.length() == 0)
-            return s1.length();
-        else if (s1.length() == 0)
-            return s2.length();
-        else if (s1.charAt(0) == s2.charAt(0))
-            return editDistance(s1.substring(1), s2.substring(1));
-        else {
-            int a = editDistance(s1.substring(1), s2);
-            int b = editDistance(s1, s2.substring(1));
-            int c = editDistance(s1.substring(1), s2.substring(1));
+        // if (s2.length() == 0)
+        //     return s1.length();
+        // else if (s1.length() == 0)
+        //     return s2.length();
+        // else if (s1.charAt(0) == s2.charAt(0))
+        //     return editDistance(s1.substring(1), s2.substring(1));
+        // else {
+        //     int a = editDistance(s1.substring(1), s2);
+        //     int b = editDistance(s1, s2.substring(1));
+        //     int c = editDistance(s1.substring(1), s2.substring(1));
             
-            return myMin(1+a, 1+b, 2+c);
-        }
-        // int[][] dp = new int[x.length() + 1][y.length() + 1];
-
-        // for (int i = 0; i <= x.length(); i++) {
-        //     for (int j = 0; j <= y.length(); j++) {
-        //         if (i == 0) {
-        //             dp[i][j] = j;
-        //         }
-        //         else if (j == 0) {
-        //             dp[i][j] = i;
-        //         }
-        //         else {
-        //             dp[i][j] = min(dp[i - 1][j - 1] 
-        //             + costOfSubstitution(x.charAt(i - 1), y.charAt(j - 1)), 
-        //             dp[i - 1][j] + 1, 
-        //             dp[i][j - 1] + 1);
-        //         }
-        //     }
+        //     return myMin(1+a, 1+b, 2+c);
         // }
+        int[][] d = new int[s1.length() + 1][s2.length() + 1];
 
-        // return dp[x.length()][y.length()];
+        for (int i = 1; i < s1.length()+1; i++)
+            d[i][0] = i;
+
+        for (int i = 1; i < s2.length()+1; i++)
+            d[0][i] = i;
+
+        for (int i = 0; i < s1.length(); i++) {
+            for (int j = 0; j < s2.length(); j++) {
+                int subCost = 2;
+                if (s1.charAt(i) == s2.charAt(j))
+                    subCost = 0;
+
+                d[i+1][j+1] = myMin(d[i][j+1] + 1,
+                                    d[i+1][j] + 1,
+                                    d[i][j] + subCost);
+            }
+        }
+
+        return d[s1.length()][s2.length()];
     }
 
     private int myMin(int a, int b, int c) {
