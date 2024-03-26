@@ -297,7 +297,7 @@ public class Searcher {
         //     System.err.println("1 " + getFileName(Index.docNames.get(res.get(i).docID)));
         // }
 
-        //nDCG(50, res);
+        nDCG(50, res);
 
         return res;
     }
