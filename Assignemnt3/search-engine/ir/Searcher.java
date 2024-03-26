@@ -95,6 +95,7 @@ public class Searcher {
         
         if (queryType == QueryType.RANKED_QUERY) {
             ret.sortByScores();
+            nDCG(50, ret);
         }
 
         return ret;
@@ -296,8 +297,6 @@ public class Searcher {
         // for (int i = 0; i < 50; i++) {
         //     System.err.println("1 " + getFileName(Index.docNames.get(res.get(i).docID)));
         // }
-
-        nDCG(50, res);
 
         return res;
     }
