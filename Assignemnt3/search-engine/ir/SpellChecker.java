@@ -7,7 +7,11 @@
 
 package ir;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 
 public class SpellChecker {
@@ -58,6 +62,7 @@ public class SpellChecker {
     public SpellChecker(Index index, KGramIndex kgIndex) {
         this.index = index;
         this.kgIndex = kgIndex;
+        System.err.println("Initialized spell checker!");
     }
 
     /**
@@ -69,7 +74,10 @@ public class SpellChecker {
         //
         // YOUR CODE HERE
         //
-        return 0;
+        
+        double j = (double)intersection / (double)(szA + szB - intersection);
+
+        return j;
     }
 
     /**
@@ -83,8 +91,43 @@ public class SpellChecker {
         //
         // YOUR CODE HERE
         //
+        if (s2.length() == 0)
+            return s1.length();
+        else if (s1.length() == 0)
+            return s2.length();
+        else if (s1.charAt(0) == s2.charAt(0))
+            return editDistance(s1.substring(1), s2.substring(1));
+        else {
+            int a = editDistance(s1.substring(1), s2);
+            int b = editDistance(s1, s2.substring(1));
+            int c = editDistance(s1.substring(1), s2.substring(1));
+            
+            return myMin(1+a, 1+b, 2+c);
+        }
+        // int[][] dp = new int[x.length() + 1][y.length() + 1];
 
-        return -1;
+        // for (int i = 0; i <= x.length(); i++) {
+        //     for (int j = 0; j <= y.length(); j++) {
+        //         if (i == 0) {
+        //             dp[i][j] = j;
+        //         }
+        //         else if (j == 0) {
+        //             dp[i][j] = i;
+        //         }
+        //         else {
+        //             dp[i][j] = min(dp[i - 1][j - 1] 
+        //             + costOfSubstitution(x.charAt(i - 1), y.charAt(j - 1)), 
+        //             dp[i - 1][j] + 1, 
+        //             dp[i][j - 1] + 1);
+        //         }
+        //     }
+        // }
+
+        // return dp[x.length()][y.length()];
+    }
+
+    private int myMin(int a, int b, int c) {
+        return Math.min(Math.min(a,b), c);
     }
 
     /**
@@ -95,8 +138,114 @@ public class SpellChecker {
         //
         // YOUR CODE HERE
         //
+        ArrayList<KGramStat> corrections = new ArrayList<KGramStat>();
+        // This function is called when no results of a query is found...
 
-        return null;
+        for (int i = 0; i < query.size(); i++) {
+            String token = query.queryterm.get(i).term;
+            Set<String> k_grams = new HashSet<String>();
+            String fullToken = "^" + token + "$"; 
+            for (int j = 0; j < token.length() + 3 - kgIndex.getK(); j++) { // Find all the k_grams
+                String k_gram = fullToken.substring(j, j+kgIndex.getK());
+                k_grams.add(k_gram);
+            }
+
+            ArrayList<String> kg_terms = kgIndex.getPostingsUnion(k_grams);
+            if (kg_terms == null || kg_terms.size() == 0)
+                continue;
+
+            // kg_terms := list of all words that could be what the user intended...
+
+            // Calculate the JC between token and all the words in kg_terms
+            for (String kg_term : kg_terms) {
+                ArrayList<String> r = kgIndex.getKGrams(kg_term);
+                Set<String> kg_grams = null;
+
+                if (r != null) {
+                    kg_grams = new HashSet<String>(r);
+                } else {
+                    kg_grams = new HashSet<String>();
+                    String fullkgterm = "^" + kg_term + "$"; 
+                    for (int j = 0; j < kg_term.length() + 3 - kgIndex.getK(); j++) { // Find all the k_grams
+                        String k_gram = fullkgterm.substring(j, j+kgIndex.getK());
+                        kg_grams.add(k_gram);
+                    }
+                }
+
+                //int intersect = intersectSize(kg_grams, k_grams);
+                int intersect = intersectSize(r, new ArrayList<String>(k_grams));
+
+                double jc = jaccard(kg_grams.size(), k_grams.size(), intersect);
+
+                if (jc < JACCARD_THRESHOLD)
+                    continue;
+                
+                // if the JC > threshold calculate the edit distance between the word w and token
+                int edit = editDistance(token, kg_term);
+
+                if (edit > MAX_EDIT_DISTANCE)
+                    continue;
+
+                // if edit distiance < threshold then w is a potential correction
+                // add w to the list of corrections
+
+                double score = calculateScore(jc, edit, kg_term);
+                corrections.add(new KGramStat(kg_term, score));
+            }
+        }
+
+        corrections.sort((o1, o2) -> o2.compareTo(o1));
+        
+        ArrayList<String> ret = new ArrayList<String>();
+        for (int i = 0; i < corrections.size(); i++) {
+            if (i >= limit)
+                break;
+            
+            ret.add(corrections.get(i).token);
+        }
+
+        return ret.toArray(new String[ret.size()]);
+    }
+
+    private double calculateScore(double jc, int editdistance, String term) {
+        double d = 2 * (double)index.getPostings(term).size()/(double)index.corpusSize();
+        return (jc + 1/(double)editdistance)*0.5 + d;
+    }
+
+    private int intersectSize(ArrayList<String> l1, ArrayList<String> l2) {
+        // 
+        // YOUR CODE HERE
+        //
+        if (l1 == null || l2 == null || l1.size() < 1 || l2.size() < 1)
+            return 0;
+
+        if (l2.size() < l1.size()) {
+            Set<String> r = new HashSet<String>(l1);
+            r.addAll(l2);
+            return l1.size() + l2.size() - r.size();
+        } else {
+            Set<String> r = new HashSet<String>(l2);
+            r.addAll(l1);
+            return l1.size() + l2.size() - r.size();
+        }
+
+        // l1.sort((o1, o2) -> o1.compareTo(o2));
+        // l2.sort((o1, o2) -> o1.compareTo(o2));
+
+        // int ret = 0;
+        // int i = 0, j = 0;
+        // while (i < l1.size() && j < l2.size()) {
+        //     if (l1.get(i).equals(l2.get(j))) {
+        //         ret++; // offset doesnt matter right now 
+        //         i++; j++;
+        //     } else if (l1.get(i).compareTo(l2.get(j)) < 0) {
+        //         i++;
+        //     } else {
+        //         j++;
+        //     }
+        // }
+        
+        // return ret;
     }
 
     /**

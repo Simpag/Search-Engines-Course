@@ -225,6 +225,7 @@ public class Query {
         try {
             Reader reader = new InputStreamReader( new FileInputStream(filename), StandardCharsets.UTF_8 );
             Tokenizer tok = new Tokenizer( reader, true, false, true, engine.indexer.patterns_file );
+            System.err.println("Pattern file: " + engine.indexer.patterns_file);
             while ( tok.hasMoreTokens() ) {
                 String token = tok.nextToken();
                 tokens.add(token);

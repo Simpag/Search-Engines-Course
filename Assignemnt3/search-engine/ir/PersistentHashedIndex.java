@@ -321,7 +321,7 @@ public class PersistentHashedIndex implements Index {
                 euclen.get(doc).put(term, tf_dt * idf_t);
             }
 
-            if (cnt++%1000 == 0)
+            if (cnt++%10000 == 0)
                 System.err.print(((double)cnt/index.size()*100) + "%, ");
         }
         
@@ -627,10 +627,10 @@ public class PersistentHashedIndex implements Index {
         System.err.println( index.keySet().size() + " unique words" );
         System.err.print( "Writing index to disk..." );
         System.err.print(" Disabled writing to index... ");
-        writeIndex(true);
+        //writeIndex(true);
         try {
             System.err.println("Euclidean len is disabled!");
-            createEucLen();
+            //createEucLen();
             readEucLen();
             dataFile.getChannel().force(false);;
             dictionaryFile.getChannel().force(false);

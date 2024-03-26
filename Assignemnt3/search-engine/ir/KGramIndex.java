@@ -23,6 +23,9 @@ public class KGramIndex {
     /** Index from k-grams to list of term ids that contain the k-gram */
     HashMap<String,List<KGramPostingsEntry>> index = new HashMap<String,List<KGramPostingsEntry>>();
 
+    /** Index from word to all k-grams */
+    HashMap<String, ArrayList<String>> word2kgrams = new HashMap<String,ArrayList<String>>();
+
     /** The ID of the last processed term */
     int lastTermID = -1;
 
@@ -46,6 +49,12 @@ public class KGramIndex {
         return K;
     }
 
+    public ArrayList<String> getKGrams(String word) {
+        if (!word2kgrams.containsKey(word))
+            return null;
+        
+        return word2kgrams.get(word);
+    }
 
     /**
      *  Get intersection of two postings lists
@@ -68,6 +77,52 @@ public class KGramIndex {
             } else {
                 j++;
             }
+        }
+
+        if (ret.size() > 0) {
+            return ret;
+        }
+        
+        return null;
+    }
+
+      /**
+     *  Get intersection of two postings lists
+     */
+    private List<KGramPostingsEntry> union(List<KGramPostingsEntry> p1, List<KGramPostingsEntry> p2) {
+        // 
+        // YOUR CODE HERE
+        //
+        if (p1 == null && p2 == null)
+            return null;
+
+        if (p1 != null && p2 == null)
+            return p1;
+
+        if (p1 == null && p2 != null)
+            return p2;
+
+        List<KGramPostingsEntry> ret = new ArrayList<KGramPostingsEntry>();
+        int i = 0, j = 0;
+        while (i < p1.size() && j < p2.size()) {
+            if (p1.get(i).tokenID == p2.get(j).tokenID) {
+                ret.add(p1.get(i));
+                i++; j++;
+            } else if (p1.get(i).tokenID < p2.get(j).tokenID) {
+                ret.add(p1.get(i));
+                i++;
+            } else {
+                ret.add(p2.get(j));
+                j++;
+            }
+        }
+
+        while (i < p1.size()) {
+            ret.add(p1.get(i++));
+        }
+
+        while (j < p2.size()) {
+            ret.add(p2.get(j++));
         }
 
         if (ret.size() > 0) {
@@ -113,6 +168,8 @@ public class KGramIndex {
                 index.put(k_gram, e);
             }
         }
+
+        word2kgrams.put(token, new ArrayList<String>(k_grams_used.keySet()));
     }
 
     /** Get postings for the given k-gram */
@@ -131,6 +188,38 @@ public class KGramIndex {
     /** Get a term by the given id */
     public String getTermByID(Integer id) {
         return id2term.get(id);
+    }
+
+    /** Get the union of multiple k-grams. Returns a list of terms */
+    public ArrayList<String> getPostingsUnion(Set<String> k_grams) {
+        ArrayList<String> ret = new ArrayList<String>();
+        List<KGramPostingsEntry> postings = null;
+        for (String kgram : k_grams) {
+            if (kgram.length() != K) {
+                System.err.println("Cannot search k-gram index: " + kgram.length() + "-gram provided instead of " + K + "-gram");
+                System.exit(1);
+            }
+
+            if (postings == null) {
+                postings = getPostings(kgram);
+            } else {
+                postings = union(postings, getPostings(kgram));
+            }
+        }
+
+        if (postings == null) {
+            //System.err.println("Found 0 posting(s)");
+            return null;
+        } else {
+            int resNum = postings.size();
+            //System.err.println("Found " + resNum + " posting(s)");
+            
+            for (int i = 0; i < resNum; i++) {
+                ret.add(getTermByID(postings.get(i).tokenID));
+            }
+
+            return ret;
+        }
     }
 
     /** Get the intersection of multiple k-grams. Returns a list of terms */

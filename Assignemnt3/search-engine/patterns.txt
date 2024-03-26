@@ -49,6 +49,8 @@
 // Twenty-four seven
 \d+/\d+
 
+\#+\w+
+
 
 // ADD YOUR PATTERNS HERE
 

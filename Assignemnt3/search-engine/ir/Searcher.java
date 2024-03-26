@@ -58,19 +58,12 @@ public class Searcher {
 
         // gets:
         // zombie;1.0, emilymaas.jpg;0.8, forgive;0.8, wiki;0.8, for;1.6, promise;0.8, while;0.8, good;0.8, rolling;0.8, 2006;0.8, her;0.8, too;0.8, children;0.8, and;0.8, edits;0.8, katamari;0.8, http://kawaiikitcat.livejournal.com/profile;0.8, up;0.8, pigeon;0.8, a;2.4000000000000004, image;0.8, though;0.8, in;0.8, was;0.8, i;0.8, is;0.8, also;0.8, livejournal;0.8, girl;1.6, molesting;0.8, any;0.8, really;0.8, nice;0.8, odd;0.8, she;2.4000000000000004, weird;0.8, s;0.8, at;0.8, obsesses;0.8, much;0.8, who;0.8,
-        for (int i = 0; i < queryWildcards.wildcards.size(); i++) {
-            System.err.print(queryWildcards.wildcards.get(i) + ";" + queryWildcards.wildcardWeights.get(i)  + ", ");
-        }
-        System.err.println("\n");
-
-        System.err.println("WC: " + queryWildcards.wildcards.size() + " W: " + queryWildcards.wildcardWeights.size());
-
-        long startTime = System.currentTimeMillis();
-
-        // for (int i = 0; i < q.size(); i++) {
-        //     System.err.print(q.queryterm.get(i).term + ";" + q.queryterm.get(i).weight  + ", ");
+        // for (int i = 0; i < queryWildcards.wildcards.size(); i++) {
+        //     System.err.print(queryWildcards.wildcards.get(i) + ";" + queryWildcards.wildcardWeights.get(i)  + ", ");
         // }
         // System.err.println("\n");
+
+        long startTime = System.currentTimeMillis();
         
         PostingsList ret = null;
         ArrayList<PostingsList> tokens = null;
@@ -94,7 +87,7 @@ public class Searcher {
                 break;
         }
         
-        if (ret == null)
+        if (ret.size() < 1)
             return null;
 
         long elapsedTime = System.currentTimeMillis() - startTime;
@@ -168,7 +161,7 @@ public class Searcher {
                 continue;
             }
 
-            String fullToken = "^" + token.substring(0, idx) + token.substring(idx)  + "$"; // Might not work because of .
+            String fullToken = "^" + token.substring(0, idx) + token.substring(idx)  + "$"; 
             Set<String> k_grams = new HashSet<String>();
             for (int j = 0; j < token.length() + 3 - kgIndex.getK(); j++) { // Find all the k_grams
                 String k_gram = fullToken.substring(j, j+kgIndex.getK());
@@ -316,9 +309,6 @@ public class Searcher {
             return null;
 
         // merge
-
-
-
         // Iterator<PostingsList> piter = lists.iterator();
         // PostingsList res;
         // if (piter.hasNext())
