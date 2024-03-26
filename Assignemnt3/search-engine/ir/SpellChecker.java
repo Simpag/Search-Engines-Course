@@ -49,7 +49,7 @@ public class SpellChecker {
      * The threshold for Jaccard coefficient; a candidate spelling
      * correction should pass the threshold in order to be accepted
      */
-    private static final double JACCARD_THRESHOLD = 0.4;
+    private static final double JACCARD_THRESHOLD = 0.35;
 
 
     /**
@@ -135,15 +135,26 @@ public class SpellChecker {
      *  Checks spelling of all terms in <code>query</code> and returns up to
      *  <code>limit</code> ranked suggestions for spelling correction.
      */
-    public String[] check(Query query, int limit) {
+    public String[] check(Query query, int limit, QueryType qt) {
         //
         // YOUR CODE HERE
         //
-        ArrayList<KGramStat> corrections = new ArrayList<KGramStat>();
         // This function is called when no results of a query is found...
-
+        ArrayList<ArrayList<KGramStat>> query_corrections = new ArrayList<ArrayList<KGramStat>>();
         for (int i = 0; i < query.size(); i++) {
             String token = query.queryterm.get(i).term;
+            // If the query returns results, skip it
+            PostingsList p = index.getPostings(token);
+            if (p != null && p.size() > 0) {
+                ArrayList<KGramStat> c = new ArrayList<KGramStat>();
+                c.add(new KGramStat(token, 1_000_000));
+                query_corrections.add(c);
+                continue;
+            }
+
+            ArrayList<KGramStat> corrections = new ArrayList<KGramStat>();
+
+            // Gets the k_grams and the full terms corresponding to these
             Set<String> k_grams = new HashSet<String>();
             String fullToken = "^" + token + "$"; 
             for (int j = 0; j < token.length() + 3 - kgIndex.getK(); j++) { // Find all the k_grams
@@ -158,6 +169,7 @@ public class SpellChecker {
             // kg_terms := list of all words that could be what the user intended...
 
             // Calculate the JC between token and all the words in kg_terms
+            double maxScore = -1; // used to normalize for each query term
             for (String kg_term : kg_terms) {
                 ArrayList<String> r = kgIndex.getKGrams(kg_term);
                 Set<String> kg_grams = null;
@@ -191,26 +203,59 @@ public class SpellChecker {
                 // add w to the list of corrections
 
                 double score = calculateScore(jc, edit, kg_term);
+                if (score > maxScore)
+                    maxScore = score;
+                
                 corrections.add(new KGramStat(kg_term, score));
             }
+
+            corrections.sort((o1, o2) -> o2.compareTo(o1));
+
+            // Only grab the top "limit" tokens
+            ArrayList<KGramStat> c = new ArrayList<KGramStat>();
+            for (int j = 0; j < corrections.size(); j++) {
+                if (j >= limit)
+                    break;
+                
+                //corrections.get(j).score /= maxScore; // Normalize the scores
+                c.add(corrections.get(j));
+            }
+            query_corrections.add(c);
         }
 
-        corrections.sort((o1, o2) -> o2.compareTo(o1));
+        ArrayList<KGramStat> merged = mergeCorrections(query_corrections, limit, qt);
+
+        if (merged == null || merged.size() == 0)
+            return null;
+
+        merged.sort((o1, o2) -> o2.compareTo(o1)); // idk if this should be done
         
         ArrayList<String> ret = new ArrayList<String>();
-        for (int i = 0; i < corrections.size(); i++) {
+        for (int i = 0; i < merged.size(); i++) {
             if (i >= limit)
                 break;
             
-            ret.add(corrections.get(i).token);
+            ret.add(merged.get(i).getToken());
         }
 
         return ret.toArray(new String[ret.size()]);
     }
 
     private double calculateScore(double jc, int editdistance, String term) {
-        double d = 2 * (double)index.getPostings(term).size()/(double)index.corpusSize();
-        return (jc + 1/(double)editdistance)*0.5 + d;
+        // All values are between 0 and 1
+        PostingsList p = index.getPostings(term);
+        double d = 0;
+        if (p != null)
+            d = 4.0 * (double)p.size()/(double)index.corpusSize();
+        
+        d += jc;
+
+        if (editdistance > 0)
+            d += 1.0/(double)editdistance;
+        else
+            d += 1.0;
+
+        return d;
     }
 
     private int intersectSize(ArrayList<String> l1, ArrayList<String> l2) {
@@ -254,10 +299,81 @@ public class SpellChecker {
      *  <code>qCorrections</code> into one final merging of query phrases. Returns up
      *  to <code>limit</code> corrected phrases.
      */
-    private List<KGramStat> mergeCorrections(List<List<KGramStat>> qCorrections, int limit) {
-        //
-        // YOUR CODE HERE
-        //
-        return null;
+    private ArrayList<KGramStat> mergeCorrections(ArrayList<ArrayList<KGramStat>> qCorrections, int limit, QueryType qt) {
+        /*
+         * Find combinations with the highest sum of scores for the entire query
+         * Not optimal but a fast greedy approach
+         * qCorrections are sorted in ascending score
+         * Take highest score and form a query, then remove the term with lowest score
+        */
+        ArrayList<KGramStat> ret = new ArrayList<KGramStat>();
+
+        if (qCorrections == null || qCorrections.size() <= 0)
+            return null;
+
+        int[] indicies = new int[qCorrections.size()];
+
+        int maxCombinations = 1;
+        for (int i = 0; i < qCorrections.size(); i++) {
+            maxCombinations *= qCorrections.get(i).size();
+        }
+
+        for (int q = 0; q < limit; q++) {
+            String token = "";
+            double score = 0;
+            double[] scores = new double[qCorrections.size()];
+            double lowestScore = Double.MAX_VALUE;
+            int lowestScoreIdx = -1;
+            for (int i = 0; i < qCorrections.size(); i++) {
+                if (qCorrections.get(i).size() < 1)
+                    continue;
+
+                token += qCorrections.get(i).get(indicies[i]).getToken() + " ";
+                double s = qCorrections.get(i).get(indicies[i]).score;
+                scores[i] = s;
+                score += s;
+                if (s < lowestScore) {
+                    lowestScore = s;
+                    lowestScoreIdx = i;
+                }
+            }
+
+            if (lowestScoreIdx < 0)
+                continue;
+
+            indicies[lowestScoreIdx]++;
+
+            // If we have used all of the tokens for the query term,
+            // then reset the count
+            if (indicies[lowestScoreIdx] >= qCorrections.get(lowestScoreIdx).size()) {
+                indicies[lowestScoreIdx] = 0;
+                double nextLowest = Double.MAX_VALUE;
+                int nextLowestIdx = -1;
+
+                for (int i = 0; i < scores.length; i++) {
+                    if (i == lowestScoreIdx)
+                        continue;
+
+                    if (scores[i] < nextLowest) {
+                        nextLowest = scores[i];
+                        nextLowestIdx = i;
+                    }
+                }
+
+                if (nextLowestIdx >= 0) {
+                    indicies[nextLowestIdx]++;
+                    if (indicies[nextLowestIdx] >= qCorrections.get(nextLowestIdx).size())
+                        indicies[nextLowestIdx] = 0;
+                }   
+            }
+
+            // Add the new "best" query
+            ret.add(new KGramStat(token, score));
+
+            if (ret.size() >= maxCombinations)
+                break;
+        }
+
+        return ret;
     }
 }

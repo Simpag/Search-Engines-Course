@@ -203,7 +203,7 @@ public class SearchGUI extends JFrame {
                     if (engine.speller != null) {
                         SpellingOptionsDialog dialog = new SpellingOptionsDialog(50);
                         startTime = System.currentTimeMillis();
-                        String[] corrections = engine.speller.check(query, 10);
+                        String[] corrections = engine.speller.check(query, 10, queryType);
                         elapsedTime = System.currentTimeMillis() - startTime;
                         System.err.println("It took " + elapsedTime / 1000.0 + "s to check spelling");
                         if (corrections != null && corrections.length > 0) {

@@ -87,7 +87,7 @@ public class Searcher {
                 break;
         }
         
-        if (ret.size() < 1)
+        if (ret == null || ret.size() < 1)
             return null;
 
         long elapsedTime = System.currentTimeMillis() - startTime;
