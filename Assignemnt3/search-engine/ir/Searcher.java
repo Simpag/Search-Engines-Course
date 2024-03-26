@@ -518,7 +518,8 @@ public class Searcher {
 
 
     private PostingsList phrase_query(ArrayList<PostingsList> tokens) {
-        //Collections.sort(tokens, Comparator.comparingInt(PostingsList::size)); // sort the list in acending order
+        if (tokens == null || tokens.size() == 0)
+            return null;
 
         Iterator<PostingsList> iter = tokens.iterator();
         PostingsList res = iter.next();
@@ -540,6 +541,9 @@ public class Searcher {
     }
 
     private PostingsList intersection_query(ArrayList<PostingsList> tokens) {
+        if (tokens == null || tokens.size() == 0)
+            return null;
+
         Collections.sort(tokens, Comparator.comparingInt(PostingsList::size)); // sort the list in acending order
 
         Iterator<PostingsList> iter = tokens.iterator();
