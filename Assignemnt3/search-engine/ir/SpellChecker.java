@@ -187,7 +187,7 @@ public class SpellChecker {
 
                 //int intersect = intersectSize(kg_grams, k_grams);
                 int intersect = intersectSize(r, new ArrayList<String>(k_grams));
-
+                
                 double jc = jaccard(kg_grams.size(), k_grams.size(), intersect);
 
                 if (jc < JACCARD_THRESHOLD)
@@ -195,13 +195,12 @@ public class SpellChecker {
                 
                 // if the JC > threshold calculate the edit distance between the word w and token
                 int edit = editDistance(token, kg_term);
-
+                
                 if (edit > MAX_EDIT_DISTANCE)
                     continue;
 
                 // if edit distiance < threshold then w is a potential correction
                 // add w to the list of corrections
-
                 double score = calculateScore(jc, edit, kg_term);
                 if (score > maxScore)
                     maxScore = score;
@@ -212,15 +211,16 @@ public class SpellChecker {
             corrections.sort((o1, o2) -> o2.compareTo(o1));
 
             // Only grab the top "limit" tokens
-            ArrayList<KGramStat> c = new ArrayList<KGramStat>();
-            for (int j = 0; j < corrections.size(); j++) {
-                if (j >= limit)
-                    break;
+            // ArrayList<KGramStat> c = new ArrayList<KGramStat>();
+            // for (int j = 0; j < corrections.size(); j++) {
+            //     if (j >= limit)
+            //         break;
                 
-                //corrections.get(j).score /= maxScore; // Normalize the scores
-                c.add(corrections.get(j));
-            }
-            query_corrections.add(c);
+            //     //corrections.get(j).score /= maxScore; // Normalize the scores
+            //     c.add(corrections.get(j));
+            // }
+            // query_corrections.add(c);
+            query_corrections.add(corrections);
         }
 
         ArrayList<KGramStat> merged = mergeCorrections(query_corrections, limit, qt);
@@ -274,24 +274,6 @@ public class SpellChecker {
             r.addAll(l1);
             return l1.size() + l2.size() - r.size();
         }
-
-        // l1.sort((o1, o2) -> o1.compareTo(o2));
-        // l2.sort((o1, o2) -> o1.compareTo(o2));
-
-        // int ret = 0;
-        // int i = 0, j = 0;
-        // while (i < l1.size() && j < l2.size()) {
-        //     if (l1.get(i).equals(l2.get(j))) {
-        //         ret++; // offset doesnt matter right now 
-        //         i++; j++;
-        //     } else if (l1.get(i).compareTo(l2.get(j)) < 0) {
-        //         i++;
-        //     } else {
-        //         j++;
-        //     }
-        // }
-        
-        // return ret;
     }
 
     /**
