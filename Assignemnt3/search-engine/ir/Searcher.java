@@ -90,12 +90,12 @@ public class Searcher {
         if (ret == null || ret.size() < 1)
             return null;
 
-        long elapsedTime = System.currentTimeMillis() - startTime;
-        System.err.println("Running queries took: " + elapsedTime + " ms");
+        // long elapsedTime = System.currentTimeMillis() - startTime;
+        // System.err.println("Running queries took: " + elapsedTime + " ms");
         
         if (queryType == QueryType.RANKED_QUERY) {
             ret.sortByScores();
-            nDCG(50, ret);
+            //nDCG(50, ret);
         }
 
         return ret;
@@ -131,9 +131,9 @@ public class Searcher {
     private WildCards createWildcardQueries(Query query) {
         long startTime = System.currentTimeMillis();
 
-        ArrayList<Query> queries = new ArrayList<Query>();
+        //ArrayList<Query> queries = new ArrayList<Query>();
         ArrayList<String> wildcards = new ArrayList<String>();
-        HashMap<String, Double> wildcardWeights = new HashMap<String, Double>();
+        //HashMap<String, Double> wildcardWeights = new HashMap<String, Double>();
         ArrayList<Double> weights = new ArrayList<Double>();
         Set<String> allTerms = new HashSet<String>();
 
@@ -337,8 +337,8 @@ public class Searcher {
             }
         }
 
-        long elapsedTime = System.currentTimeMillis() - startTime;
-        System.err.println("Merge took: " + elapsedTime + " ms");
+        // long elapsedTime = System.currentTimeMillis() - startTime;
+        // System.err.println("Merge took: " + elapsedTime + " ms");
 
         return res;
     }
@@ -439,8 +439,8 @@ public class Searcher {
             res.add(merge_postingslists(a));
         }
 
-        long elapsedTime = System.currentTimeMillis() - startTime;
-        System.err.println("TF_IDFS took: " + elapsedTime + " ms");
+        // long elapsedTime = System.currentTimeMillis() - startTime;
+        // System.err.println("TF_IDFS took: " + elapsedTime + " ms");
 
         return res;
     }

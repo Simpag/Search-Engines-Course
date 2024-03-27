@@ -297,6 +297,13 @@ public class PersistentHashedIndex implements Index {
     /* Create euclidean length file */
     protected void createEucLen() throws IOException {
         System.err.print("Starting to calculate euclidean length...");
+        File f = new File(INDEXDIR + "/" + EUCLEN_FNAME);
+        
+        if (f.exists()) {
+            System.err.println("Euclidian length file already exsists!");
+            return;
+        }
+
         HashMap<Integer, HashMap<String, Double>> euclen = new HashMap<Integer, HashMap<String, Double>>();
         Set<Integer> docSet = docLengths.keySet();
         int cnt = 0;
@@ -628,7 +635,6 @@ public class PersistentHashedIndex implements Index {
         System.err.print( "Writing index to disk..." );
         writeIndex(true);
         try {
-            System.err.println("Euclidean len is disabled!");
             createEucLen();
             readEucLen();
             dataFile.getChannel().force(false);;
